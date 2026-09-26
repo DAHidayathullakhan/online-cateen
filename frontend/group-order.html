@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Group Ordering & Split Pay | Smart Campus Canteen</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body style="background: var(--bg-main);">
+  <div id="navbar-container"></div>
+
+  <div class="container" style="max-width: 860px; margin: 2rem auto;">
+    <div style="margin-bottom: 1.75rem;">
+      <span class="role-badge" style="background: var(--primary-light); color: var(--primary); margin-bottom: 0.5rem;">
+        👥 GROUP DINING & SPLIT BILLING
+      </span>
+      <h1 style="color: var(--primary-dark); font-weight: 800; font-size: 1.8rem; margin: 0.25rem 0;">Group Food Ordering</h1>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Order meals together with hostel roommates & project teams. Split payments automatically.</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem; margin-bottom: 1.75rem;">
+      <!-- Create Group -->
+      <div class="card" style="padding: 1.75rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <div style="width: 44px; height: 44px; background: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-bottom: 1rem;">🚀</div>
+        <h3 style="font-weight: 800; color: var(--primary-dark); margin-bottom: 0.5rem; font-size: 1.2rem;">1. Create New Group Order</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">Generate a unique group invite code to share with friends.</p>
+        <div class="form-group">
+          <label class="form-label">Select Canteen Branch</label>
+          <select id="group-branch-select" class="form-control" style="font-weight: 600;"></select>
+        </div>
+        <button onclick="createGroupOrder()" class="btn btn-primary btn-block" style="padding: 0.8rem; font-weight: 700;">Create Group Order 🚀</button>
+      </div>
+
+      <!-- Join Group -->
+      <div class="card" style="padding: 1.75rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <div style="width: 44px; height: 44px; background: #e0e7ff; color: #4338ca; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin-bottom: 1rem;">👥</div>
+        <h3 style="font-weight: 800; color: var(--primary-dark); margin-bottom: 0.5rem; font-size: 1.2rem;">2. Join Existing Group</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">Enter group code shared by your friend or host.</p>
+        <div class="form-group">
+          <label class="form-label">Group Code</label>
+          <input type="text" id="join-code-input" class="form-control" placeholder="GRP-A9F21" style="text-transform: uppercase; font-weight: 800; font-size: 1.1rem; letter-spacing: 1px;">
+        </div>
+        <button onclick="joinGroupOrder()" class="btn btn-outline btn-block" style="padding: 0.8rem; font-weight: 700; border-color: var(--primary); color: var(--primary);">Join Group 👥</button>
+      </div>
+    </div>
+
+    <!-- Active Group Details Card -->
+    <div id="group-details-card" class="card" style="display: none; padding: 1.75rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.25rem;">
+        <div>
+          <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">ACTIVE GROUP CODE</span>
+          <h2 id="group-code-display" style="color: var(--primary-dark); font-weight: 800; font-size: 1.8rem; margin: 0.2rem 0 0;">GRP-XXXX</h2>
+        </div>
+        <div>
+          <span id="group-status-badge" class="status-badge status-NEW" style="font-size: 0.85rem; padding: 0.3rem 0.85rem;">OPEN</span>
+        </div>
+      </div>
+
+      <h4 style="margin-bottom: 0.75rem; font-weight: 800; color: var(--text-dark);">Group Members & Individual Split Charges</h4>
+      <div id="group-members-list"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/group.js"></script>
+</body>
+</html>

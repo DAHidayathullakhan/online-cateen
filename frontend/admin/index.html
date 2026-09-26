@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard | Smart Campus Canteen</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body style="background: var(--bg-main);">
+  <div id="navbar-container"></div>
+
+  <div class="container" style="max-width: 1200px; margin: 2rem auto;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.75rem; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <span class="role-badge" style="background: rgba(37,99,235,0.1); color: var(--primary); margin-bottom: 0.5rem;">
+          🛡️ SYSTEM ADMINISTRATOR PANEL
+        </span>
+        <h1 style="color: var(--primary-dark); font-weight: 800; font-size: 1.8rem; margin: 0.25rem 0;">Admin Control Center</h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Monitor campus sales, hourly rush analytics, manage user roles & control emergency branch closures.</p>
+      </div>
+      <div style="display: flex; gap: 0.5rem;">
+        <a href="/admin/intelligence.html" class="btn btn-outline" style="font-weight: 700;">🌾 Supply Chain & Intelligence ➔</a>
+      </div>
+    </div>
+
+    <!-- Analytics Stat KPI Cards -->
+    <div class="grid-cards" style="margin-bottom: 1.75rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+      <div class="card" style="border-top: 4px solid var(--primary); padding: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Today's Orders</span>
+          <span style="font-size: 1.2rem;">📦</span>
+        </div>
+        <div id="stat-today-orders" style="font-size: 2rem; font-weight: 800; color: var(--primary-dark);">0</div>
+        <div style="font-size: 0.75rem; color: var(--success); font-weight: 600; margin-top: 0.3rem;">🟢 Active live orders</div>
+      </div>
+
+      <div class="card" style="border-top: 4px solid var(--success); padding: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Today's Revenue</span>
+          <span style="font-size: 1.2rem;">💰</span>
+        </div>
+        <div id="stat-today-revenue" style="font-size: 2rem; font-weight: 800; color: var(--success);">₹0</div>
+        <div style="font-size: 0.75rem; color: var(--success); font-weight: 600; margin-top: 0.3rem;">↗️ Updated in real-time</div>
+      </div>
+
+      <div class="card" style="border-top: 4px solid var(--warning); padding: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Total Cumulative Sales</span>
+          <span style="font-size: 1.2rem;">📈</span>
+        </div>
+        <div id="stat-total-revenue" style="font-size: 2rem; font-weight: 800; color: #b45309;">₹0</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; margin-top: 0.3rem;">All campus branches</div>
+      </div>
+
+      <div class="card" style="border-top: 4px solid var(--danger); padding: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Rush Hour Peak</span>
+          <span style="font-size: 1.2rem;">🔥</span>
+        </div>
+        <div id="stat-rush-hour" style="font-size: 1.35rem; font-weight: 800; color: var(--danger);">12:00 - 13:00</div>
+        <div style="font-size: 0.75rem; color: var(--danger); font-weight: 600; margin-top: 0.3rem;">⚠️ Peak queue bottleneck window</div>
+      </div>
+    </div>
+
+    <!-- Chart.js Sales Graph -->
+    <div class="card" style="margin-bottom: 1.75rem; padding: 1.75rem; border: 1px solid var(--border-color);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 style="font-weight: 800; color: var(--primary-dark); font-size: 1.2rem; margin: 0;">📊 Hourly Campus Sales Distribution</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Real-time orders aggregated by hour</span>
+      </div>
+      <canvas id="salesChart" style="max-height: 260px;"></canvas>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.1fr; gap: 1.5rem;">
+      <!-- Emergency Branch Closures -->
+      <div class="card" style="padding: 1.5rem; border: 1px solid var(--border-color);">
+        <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.15rem;">🚨 Emergency Branch Closure Control</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Instantly halt online orders for specific canteen locations during maintenance or stock shortages.</p>
+        <div id="admin-branches-list"></div>
+      </div>
+
+      <!-- User Roles Table -->
+      <div class="card" style="padding: 1.5rem; border: 1px solid var(--border-color);">
+        <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.15rem;">👥 System Users & Role Authorization</h3>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; font-size: 0.85rem; border-collapse: collapse;">
+            <thead>
+              <tr style="text-align: left; border-bottom: 2px solid var(--border-color); color: var(--text-muted); font-weight: 700;">
+                <th style="padding: 0.6rem 0.4rem;">Name</th>
+                <th style="padding: 0.6rem 0.4rem;">Email</th>
+                <th style="padding: 0.6rem 0.4rem;">Role</th>
+                <th style="padding: 0.6rem 0.4rem;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

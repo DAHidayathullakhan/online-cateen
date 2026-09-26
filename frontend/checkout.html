@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout | Smart Campus Canteen</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body style="background: var(--bg-main);">
+  <div id="navbar-container"></div>
+
+  <div class="container" style="max-width: 960px; margin: 2rem auto;">
+    <!-- Step Tracker Header -->
+    <div style="margin-bottom: 2rem;">
+      <h1 style="margin-bottom: 0.25rem; color: var(--primary-dark); font-weight: 800; font-size: 1.8rem;">Checkout & Order Fulfillment</h1>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;">Select pickup slot window or hostel room delivery location.</p>
+
+      <div style="display: flex; gap: 0.5rem; background: var(--card-bg); padding: 0.75rem; border-radius: var(--radius); border: 1px solid var(--border-color); font-size: 0.85rem; font-weight: 700; text-align: center;">
+        <div style="flex: 1; padding: 0.5rem; background: var(--primary-light); color: var(--primary); border-radius: var(--radius-sm);">1. Branch & Time Slot</div>
+        <div style="flex: 1; padding: 0.5rem; color: var(--text-muted);">2. Preferences</div>
+        <div style="flex: 1; padding: 0.5rem; color: var(--text-muted);">3. Payment & Token</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1.25fr 0.85fr; gap: 1.5rem;">
+      <!-- Options Form -->
+      <div class="card" style="padding: 1.75rem; border: 1px solid var(--border-color);">
+        <h3 style="margin-bottom: 1.25rem; color: var(--primary-dark); font-weight: 800; font-size: 1.2rem;">1. Select Canteen Branch & Fulfillment</h3>
+
+        <div class="form-group">
+          <label class="form-label">Campus Canteen Branch</label>
+          <select id="branch-checkout-select" class="form-control" style="font-weight: 600;"></select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Fulfillment Type</label>
+          <select id="order-type-select" class="form-control" style="font-weight: 600;">
+            <option value="Pickup">Scheduled Lunch Pickup (At Canteen Counter)</option>
+            <option value="Room Delivery">Campus Room Delivery (+₹20 delivery fee)</option>
+          </select>
+        </div>
+
+        <!-- Pickup Slot Selection -->
+        <div id="pickup-slot-section" class="form-group" style="background: var(--primary-light); padding: 1.25rem; border-radius: var(--radius-sm); border: 1px solid rgba(37,99,235,0.2);">
+          <label class="form-label" style="color: var(--primary-dark); font-weight: 700;">📅 Select Scheduled Pickup Window</label>
+          <select id="pickup-slot-select" class="form-control" style="background: white; font-weight: 600;"></select>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem; display: flex; align-items: center; gap: 0.3rem;">
+            <span>🛡️ Slot capacities dynamically monitored by kitchen server.</span>
+          </div>
+        </div>
+
+        <!-- Room Delivery Section -->
+        <div id="delivery-section" class="form-group" style="display: none; background: #fffbeb; padding: 1.25rem; border-radius: var(--radius-sm); border: 1px solid #fde68a;">
+          <label class="form-label" style="color: #92400e; font-weight: 700;">🏢 Campus Hostel Delivery Address</label>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-top: 0.5rem;">
+            <div>
+              <label style="font-size: 0.75rem; font-weight: 600; color: #92400e;">Hostel Building</label>
+              <select id="delivery-building-select" class="form-control" style="background: white;"></select>
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; font-weight: 600; color: #92400e;">Floor</label>
+              <input type="text" id="delivery-floor-input" class="form-control" value="2nd Floor" style="background: white;">
+            </div>
+            <div style="grid-column: span 2;">
+              <label style="font-size: 0.75rem; font-weight: 600; color: #92400e;">Room Number</label>
+              <input type="text" id="delivery-room-input" class="form-control" value="203" style="background: white;">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 1.25rem;">
+          <label class="form-label">Special Preparation Instructions / Allergies</label>
+          <input type="text" id="special-instructions-input" class="form-control" placeholder="Extra spicy, no cutlery, call before delivery...">
+        </div>
+      </div>
+
+      <!-- Order Summary & Payment Card -->
+      <div class="card" style="padding: 1.75rem; border: 1px solid var(--border-color); height: fit-content;">
+        <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.2rem;">2. Payment Summary</h3>
+        <div id="checkout-items-list" style="margin-bottom: 1.25rem;"></div>
+
+        <!-- Coupon Code Input -->
+        <div class="form-group" style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+          <input type="text" id="coupon-input" class="form-control" placeholder="Promo code (e.g. BCA10)" style="font-weight: 600; text-transform: uppercase;">
+          <button onclick="applyCoupon()" class="btn btn-outline" style="white-space: nowrap; font-weight: 700;">Apply</button>
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color); padding-top: 1rem; font-size: 0.95rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: var(--text-dark);">
+            <span>Food Items Total:</span>
+            <span id="summary-subtotal" style="font-weight: 600;">₹0</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: var(--text-dark);">
+            <span>Hostel Delivery Fee:</span>
+            <span id="summary-delivery" style="font-weight: 600;">₹0</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: var(--success); font-weight: 600;">
+            <span>Promo Discount:</span>
+            <span id="summary-discount">-₹0</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-top: 1rem; padding-top: 0.75rem; border-top: 2px solid var(--border-color); font-size: 1.3rem; font-weight: 800; color: var(--primary-dark);">
+            <span>Total Payable:</span>
+            <span id="summary-final">₹0</span>
+          </div>
+        </div>
+
+        <button onclick="submitCheckout()" class="btn btn-primary btn-block" style="margin-top: 1.5rem; padding: 0.9rem; font-size: 1.05rem; font-weight: 700; border-radius: 10px;">
+          Place Order & Pay 💳
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modern Payment Modal -->
+  <div id="payment-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="card" style="max-width: 420px; width: 92%; padding: 2rem; text-align: center; border-radius: var(--radius); box-shadow: var(--shadow-lg);">
+      <div style="width: 64px; height: 64px; background: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 0.75rem;">💳</div>
+      <h3 style="font-weight: 800; color: var(--primary-dark); margin-bottom: 0.25rem;">Campus Pay Gateway</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Instant 1-Click Payment via Campus Wallet / Student Card</p>
+
+      <div style="margin: 1.5rem 0; background: var(--bg-main); padding: 1rem; border-radius: 10px; border: 1px solid var(--border-color); text-align: left; font-size: 0.9rem;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+          <span style="color: var(--text-muted);">Payment Method:</span>
+          <strong style="color: var(--primary-dark);">Campus Wallet</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-muted);">Transaction Status:</span>
+          <span class="status-badge status-READY" style="font-size: 0.75rem;">Ready to Deduct</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 0.75rem;">
+        <button onclick="document.getElementById('payment-modal').style.display='none'" class="btn btn-outline btn-block" style="font-weight: 600;">Cancel</button>
+        <button onclick="confirmPayment()" class="btn btn-success btn-block" style="font-weight: 700; background: var(--success); border-color: var(--success); padding: 0.75rem;">Authorize & Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/cart.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/checkout.js"></script>
+</body>
+</html>

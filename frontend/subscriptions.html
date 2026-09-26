@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meal Subscriptions | Smart Campus Canteen</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body style="background: var(--bg-main);">
+  <div id="navbar-container"></div>
+
+  <div class="container" style="max-width: 960px; margin: 2rem auto;">
+    <div style="margin-bottom: 1.75rem;">
+      <span class="role-badge" style="background: var(--primary-light); color: var(--primary); margin-bottom: 0.5rem;">
+        🎟️ DISCOUNTED CAMPUS MEAL PASSES
+      </span>
+      <h1 style="color: var(--primary-dark); font-weight: 800; font-size: 1.8rem; margin: 0.25rem 0;">Canteen Meal Subscriptions</h1>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Pre-purchase monthly or weekly meal packages at discounted rates and skip daily checkout payments.</p>
+    </div>
+
+    <!-- My Active Passes -->
+    <div class="card" style="padding: 1.75rem; margin-bottom: 2rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+      <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.25rem;">🎟️ My Purchased Active Passes</h3>
+      <div id="my-subscriptions-list"></div>
+    </div>
+
+    <!-- Available Plans Grid -->
+    <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.25rem;">Available Meal Subscription Packages</h3>
+    <div id="meal-plans-list" class="grid-cards"></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/subscriptions.js"></script>
+</body>
+</html>

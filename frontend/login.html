@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Smart Campus Canteen</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body style="display: flex; flex-direction: column; min-height: 100vh; background: var(--bg-main);">
+  <div id="navbar-container"></div>
+
+  <div class="container" style="max-width: 480px; margin: auto; padding: 2.5rem 1rem;">
+    <div class="card" style="padding: 2.25rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-lg);">
+      <div style="text-align: center; margin-bottom: 1.75rem;">
+        <div style="width: 54px; height: 54px; background: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; margin: 0 auto 0.75rem;">🎓</div>
+        <h2 style="color: var(--primary-dark); font-weight: 800; font-size: 1.6rem; margin-bottom: 0.25rem;">Welcome Back!</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Sign in to access your canteen wallet, orders & meal passes.</p>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label">College Email Address</label>
+          <input type="email" id="email" class="form-control" placeholder="student@canteen.edu" required style="padding: 0.75rem 1rem;">
+        </div>
+
+        <div class="form-group" style="position: relative;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label class="form-label">Password</label>
+            <a href="#" style="font-size: 0.8rem; color: var(--primary); font-weight: 600;" onclick="showToast('Demo default password is password123', 'info'); return false;">Forgot?</a>
+          </div>
+          <div style="position: relative;">
+            <input type="password" id="password" class="form-control" placeholder="••••••••" required style="padding: 0.75rem 1rem; padding-right: 2.5rem;">
+            <button type="button" onclick="togglePasswordVisibility()" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.1rem;">👁️</button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="padding: 0.85rem; font-size: 1rem; font-weight: 700; margin-top: 0.5rem;">
+          Sign In ➔
+        </button>
+      </form>
+
+      <!-- Quick Demo Login Buttons for all 7 Roles -->
+      <div style="margin-top: 2rem; border-top: 1px dashed var(--border-color); padding-top: 1.25rem;">
+        <div style="font-size: 0.75rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem; text-align: center;">⚡ One-Click Quick Role Selector (Password: password123)</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
+          <button onclick="fillLogin('student@canteen.edu')" class="btn btn-outline" style="padding: 0.45rem; font-size: 0.8rem; text-align: left; font-weight: 600;">🎓 Student</button>
+          <button onclick="fillLogin('mstudent@canteen.edu')" class="btn btn-outline" style="padding: 0.45rem; font-size: 0.8rem; text-align: left; font-weight: 600;">👨‍🎓 Master's Student</button>
+          <button onclick="fillLogin('operator@canteen.edu')" class="btn btn-outline" style="padding: 0.45rem; font-size: 0.8rem; text-align: left; font-weight: 600;">📱 Operator</button>
+          <button onclick="fillLogin('kitchen@canteen.edu')" class="btn btn-outline" style="padding: 0.45rem; font-size: 0.8rem; text-align: left; font-weight: 600;">👨‍🍳 Kitchen Staff</button>
+          <button onclick="fillLogin('delivery@canteen.edu')" class="btn btn-outline" style="padding: 0.45rem; font-size: 0.8rem; text-align: left; font-weight: 600;">🛵 Delivery Staff</button>
+          <button onclick="fillLogin('manager@canteen.edu')" class="btn btn-outline" style="padding: 0.45rem; font-size: 0.8rem; text-align: left; font-weight: 600;">🏢 Branch Manager</button>
+          <button onclick="fillLogin('admin@canteen.edu')" class="btn btn-outline" style="grid-column: span 2; padding: 0.45rem; font-size: 0.8rem; font-weight: 700; text-align: center; border-color: var(--primary); color: var(--primary);">🛡️ Administrator Account</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 1.5rem; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
+        Don't have a campus student account? <a href="/register.html" style="color: var(--primary); font-weight: 700;">Register Here</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    function togglePasswordVisibility() {
+      const field = document.getElementById('password');
+      field.type = field.type === 'password' ? 'text' : 'password';
+    }
+
+    function fillLogin(email) {
+      document.getElementById('email').value = email;
+      document.getElementById('password').value = 'password123';
+      document.getElementById('login-form').dispatchEvent(new Event('submit'));
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        const res = await apiRequest('/auth/login', 'POST', { email, password });
+        Auth.saveSession(res.token, res.user);
+        showToast('Login successful! Redirecting...', 'success');
+        setTimeout(() => {
+          if (res.user.role === 'Admin') window.location.href = '/admin/index.html';
+          else if (res.user.role === 'Kitchen Staff') window.location.href = '/kitchen/index.html';
+          else if (res.user.role === 'Canteen Operator') window.location.href = '/operator/index.html';
+          else if (res.user.role === 'Delivery Staff') window.location.href = '/delivery/index.html';
+          else if (res.user.role === 'Branch Manager') window.location.href = '/manager/index.html';
+          else window.location.href = '/index.html';
+        }, 800);
+      } catch (err) {}
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Canteen Intelligence | Admin & Supply Chain</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body style="background: var(--bg-main);">
+  <div id="navbar-container"></div>
+
+  <div class="container" style="max-width: 1240px; margin: 2rem auto;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.75rem; flex-wrap: wrap; gap: 1rem;">
+      <div>
+        <span class="role-badge" style="background: rgba(37,99,235,0.1); color: var(--primary); margin-bottom: 0.5rem;">
+          🌾 SUPPLY CHAIN & CANTEEN INTELLIGENCE
+        </span>
+        <h1 style="color: var(--primary-dark); font-weight: 800; font-size: 1.8rem; margin: 0.25rem 0;">Supply Chain & Advanced Intelligence</h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Raw ingredient tracking, vendor purchase orders, exam mode control & statistical sell-out predictions.</p>
+      </div>
+      <a href="/admin/index.html" class="btn btn-outline" style="font-weight: 700; background: white;">
+        ⬅️ Back to Admin Control Center
+      </a>
+    </div>
+
+    <!-- Exam Mode Switcher & Sell-Out Predictions -->
+    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1.75rem; margin-bottom: 1.75rem;">
+      <div class="card" style="padding: 1.75rem; border-left: 5px solid var(--danger); border: 1px solid var(--border-color); border-left-width: 5px;">
+        <h3 style="margin-bottom: 0.5rem; color: var(--primary-dark); font-weight: 800; font-size: 1.2rem;">📝 Exam-Time Mode Toggle</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">Extends pickup window slots by +15 mins and activates high-protein exam special menus.</p>
+        <button onclick="toggleExamState(true)" class="btn btn-primary btn-block" style="margin-bottom: 0.75rem; font-weight: 700; padding: 0.75rem;">
+          Enable Campus Exam Mode 📝
+        </button>
+        <button onclick="toggleExamState(false)" class="btn btn-outline btn-block" style="font-weight: 600; padding: 0.75rem;">
+          Disable Exam Mode
+        </button>
+      </div>
+
+      <div class="card" style="padding: 1.75rem; border: 1px solid var(--border-color);">
+        <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.2rem;">⏱️ Statistical Sell-Out Predictions</h3>
+        <div id="predictions-list" class="grid-cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));"></div>
+      </div>
+    </div>
+
+    <!-- Raw Ingredient Inventory -->
+    <div class="card" style="padding: 1.75rem; margin-bottom: 1.75rem; border: 1px solid var(--border-color);">
+      <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.2rem;">🌾 Raw Ingredient Stock Inventory</h3>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+          <thead>
+            <tr style="text-align: left; border-bottom: 2px solid var(--border-color); color: var(--text-muted); font-weight: 700;">
+              <th style="padding: 0.6rem;">Ingredient</th>
+              <th style="padding: 0.6rem;">Current Quantity</th>
+              <th style="padding: 0.6rem;">Min Threshold</th>
+              <th style="padding: 0.6rem;">Branch</th>
+              <th style="padding: 0.6rem;">Stock Status</th>
+            </tr>
+          </thead>
+          <tbody id="ingredients-list-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Vendors & Purchase Orders -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem; margin-bottom: 1.75rem;">
+      <!-- Vendors List -->
+      <div class="card" style="padding: 1.75rem; border: 1px solid var(--border-color);">
+        <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.2rem;">🏭 Canteen Suppliers & Vendors</h3>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+            <thead>
+              <tr style="text-align: left; border-bottom: 2px solid var(--border-color); color: var(--text-muted); font-weight: 700;">
+                <th style="padding: 0.6rem;">Vendor</th>
+                <th style="padding: 0.6rem;">Contact</th>
+                <th style="padding: 0.6rem;">Phone</th>
+                <th style="padding: 0.6rem;">Items</th>
+              </tr>
+            </thead>
+            <tbody id="vendors-list-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Purchase Orders -->
+      <div class="card" style="padding: 1.75rem; border: 1px solid var(--border-color);">
+        <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.2rem;">📦 Purchase Orders (PO Goods Receipt)</h3>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+            <thead>
+              <tr style="text-align: left; border-bottom: 2px solid var(--border-color); color: var(--text-muted); font-weight: 700;">
+                <th style="padding: 0.6rem;">PO Number</th>
+                <th style="padding: 0.6rem;">Vendor</th>
+                <th style="padding: 0.6rem;">Cost</th>
+                <th style="padding: 0.6rem;">Status</th>
+                <th style="padding: 0.6rem;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="purchases-list-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Event Catering -->
+    <div class="card" style="padding: 1.75rem; border: 1px solid var(--border-color);">
+      <h3 style="margin-bottom: 1rem; color: var(--primary-dark); font-weight: 800; font-size: 1.2rem;">🎉 Bulk College Event Catering Orders</h3>
+      <div id="catering-list"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/supplyChain.js"></script>
+  <script>
+    async function toggleExamState(enableIt) {
+      try {
+        const res = await apiRequest('/holidays/exam-mode', 'PATCH', { isExamMode: enableIt });
+        showToast(res.message, 'success');
+      } catch (e) {}
+    }
+  </script>
+</body>
+</html>
