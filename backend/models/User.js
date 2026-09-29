@@ -4,12 +4,12 @@ const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: [true, 'Full name is required'],
+      required: true,
       trim: true
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: true,
       unique: true,
       lowercase: true,
       trim: true,
@@ -17,8 +17,8 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
-      select: false
+      required: true,
+      minlength: 6
     },
     role: {
       type: String,
@@ -32,7 +32,6 @@ const userSchema = new mongoose.Schema(
         'Admin'
       ],
       default: 'Student',
-      required: true,
       index: true
     },
     phone: {
@@ -41,8 +40,10 @@ const userSchema = new mongoose.Schema(
     },
     studentId: {
       type: String,
+      uppercase: true,
       trim: true,
-      sparse: true
+      sparse: true,
+      index: true
     },
     branch: {
       type: mongoose.Schema.Types.ObjectId,

@@ -1,54 +1,72 @@
-// Cart Management Client
 const Cart = {
-  getCart: () => JSON.parse(localStorage.getItem('canteen_cart')) || [],
-  
-  saveCart: (cart) => {
-    localStorage.setItem('canteen_cart', JSON.stringify(cart));
-    if (window.updateCartBadge) window.updateCartBadge();
+  getItems() {
+    const items = localStorage.getItem('cart_items');
+    return items ? JSON.parse(items) : [];
   },
-
-  addItem: (item, qty = 1) => {
-    const cart = Cart.getCart();
-    const existingIndex = cart.findIndex(i => i.menuItemId === (item._id || item.menuItemId));
+  saveItems(items) {
+    localStorage.setItem('cart_items', JSON.stringify(items));
+    this.updateCartBadge();
+  },
+  addItem(item) {
+    let items = this.getItems();
+    const existingIndex = items.findIndex(i => i._id === item._id || i.id === item.id);
 
     if (existingIndex > -1) {
-      cart[existingIndex].quantity += qty;
+      items[existingIndex].quantity = (items[existingIndex].quantity || 1) + 1;
     } else {
-      cart.push({
-        menuItemId: item._id || item.menuItemId,
+      items.push({
+        _id: item._id || item.id,
         name: item.name,
         price: item.price,
-        image: item.image,
-        isVegetarian: item.isVegetarian,
-        quantity: qty
+        image: item.image || '/images/food/default-food.svg',
+        quantity: 1
       });
     }
 
-    Cart.saveCart(cart);
-    showToast(`Added "${item.name}" to cart!`, 'success');
+    this.saveItems(items);
+    showToast(`Added ${item.name} to cart`, 'success');
   },
+  updateQuantity(id, delta) {
+    let items = this.getItems();
+    const index = items.findIndex(i => i._id === id);
 
-  removeItem: (menuItemId) => {
-    const cart = Cart.getCart().filter(i => i.menuItemId !== menuItemId);
-    Cart.saveCart(cart);
-  },
-
-  updateQuantity: (menuItemId, delta) => {
-    const cart = Cart.getCart();
-    const item = cart.find(i => i.menuItemId === menuItemId);
-    if (item) {
-      item.quantity += delta;
-      if (item.quantity <= 0) {
-        return Cart.removeItem(menuItemId);
+    if (index > -1) {
+      items[index].quantity += delta;
+      if (items[index].quantity <= 0) {
+        items.splice(index, 1);
       }
+      this.saveItems(items);
     }
-    Cart.saveCart(cart);
   },
-
-  clearCart: () => {
-    localStorage.removeItem('canteen_cart');
-    if (window.updateCartBadge) window.updateCartBadge();
+  removeItem(id) {
+    let items = this.getItems();
+    items = items.filter(i => i._id !== id);
+    this.saveItems(items);
+  },
+  clearCart() {
+    localStorage.removeItem('cart_items');
+    this.updateCartBadge();
+  },
+  getTotalCount() {
+    const items = this.getItems();
+    return items.reduce((total, i) => total + (i.quantity || 1), 0);
+  },
+  getSubtotal() {
+    const items = this.getItems();
+    return items.reduce((subtotal, i) => subtotal + (i.price * (i.quantity || 1)), 0);
+  },
+  updateCartBadge() {
+    const count = this.getTotalCount();
+    const badge = document.getElementById('cart-badge');
+    if (badge) {
+      badge.innerText = count;
+      badge.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
   }
 };
+
+document.addEventListener('DOMContentLoaded', () => {
+  Cart.updateCartBadge();
+});
 
 window.Cart = Cart;

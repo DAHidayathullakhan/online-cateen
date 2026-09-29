@@ -10,7 +10,7 @@ const menuItemSchema = new mongoose.Schema(
     },
     image: {
       type: String,
-      default: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80'
+      default: '/images/food/placeholder.jpg'
     },
     description: {
       type: String,
@@ -32,7 +32,9 @@ const menuItemSchema = new mongoose.Schema(
         'Meals',
         'Fast Food',
         'Healthy Food',
-        'Special Items'
+        'Special Items',
+        'Healthy',
+        'Special'
       ],
       index: true
     },
@@ -52,7 +54,7 @@ const menuItemSchema = new mongoose.Schema(
       min: 0
     },
     preparationTime: {
-      type: Number, // in minutes
+      type: Number,
       default: 10
     },
     popularity: {
@@ -65,25 +67,14 @@ const menuItemSchema = new mongoose.Schema(
       index: true
     },
     ingredients: [{ type: String }],
-    allergyInfo: [{ type: String }], // e.g. ["Peanuts", "Dairy", "Gluten"]
-    dietaryTags: [{ type: String }], // e.g. ["Jain", "No Onion", "No Garlic"]
+    allergyInfo: [{ type: String }],
+    dietaryTags: [{ type: String }],
     branches: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Branch'
       }
-    ],
-    scheduledDay: {
-      type: String,
-      default: 'All'
-    },
-    soldOutEstimatedTime: {
-      type: String // e.g. "01:10 PM"
-    },
-    isActive: {
-      type: Boolean,
-      default: true
-    }
+    ]
   },
   { timestamps: true }
 );

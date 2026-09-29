@@ -7,38 +7,64 @@
   <link rel="stylesheet" href="/css/styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
-<body style="background: var(--bg-main);">
-  <div id="navbar-container"></div>
+<body>
+  <!-- Header Navbar -->
+  <nav class="navbar">
+    <div class="container nav-content">
+      <a href="/" class="brand-logo">
+        🍔 <span>Smart Campus Canteen</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="/" class="active">Menu</a></li>
+        <li><a href="/login.html">Login</a></li>
+        <li><a href="/register.html">Register</a></li>
+        <li>
+          <a href="#" onclick="showCartModal()" style="display: flex; align-items: center; gap: 0.4rem; background: var(--primary-light); color: var(--primary-dark); padding: 0.4rem 0.85rem; border-radius: 9999px;">
+            🛒 Cart <span id="cart-badge" style="background: var(--primary); color: white; padding: 2px 7px; border-radius: 9999px; font-size: 0.75rem; font-weight: 800; display: none;">0</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
 
-  <div class="container" style="max-width: 1200px; margin: 2rem auto;">
+  <!-- Main Menu Container -->
+  <div class="container" style="margin: 2rem auto; flex-grow: 1;">
     <div style="margin-bottom: 1.75rem;">
-      <span class="role-badge" style="background: var(--primary-light); color: var(--primary); margin-bottom: 0.5rem;">
+      <span style="background: var(--primary-light); color: var(--primary-dark); padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 800;">
         🍔 FULL CAMPUS FOOD CATALOG
       </span>
-      <h1 style="color: var(--primary-dark); font-weight: 800; font-size: 1.8rem; margin: 0.25rem 0;">Explore Canteen Menu</h1>
-      <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Filter dishes by branch, category, dietary preference, or search by ingredient.</p>
+      <h1 style="color: var(--primary-dark); font-weight: 800; font-size: 1.8rem; margin: 0.35rem 0 0.15rem;">Explore Canteen Menu</h1>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">Filter dishes by category, dietary preference, or search by dish name.</p>
     </div>
 
-    <!-- Filters Header Card -->
-    <div class="card" style="padding: 1.25rem; margin-bottom: 1.75rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+    <!-- Filters Bar Card -->
+    <div class="card" style="padding: 1.25rem; margin-bottom: 1.75rem;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; align-items: center;">
         <div>
-          <label class="form-label" style="font-weight: 700;">🔍 Search Food Items</label>
-          <input type="text" id="search-input" class="form-control" placeholder="Samosa, biryani, coffee, maggi..." style="padding: 0.65rem;">
+          <label class="form-label">🔍 Search Food Items</label>
+          <input type="text" id="search-input" class="form-control" placeholder="Search dosa, biryani, coffee, maggi..." style="padding: 0.65rem;">
         </div>
 
         <div>
-          <label class="form-label" style="font-weight: 700;">📍 Canteen Branch</label>
+          <label class="form-label">📍 Canteen Branch</label>
           <select id="branch-select" onchange="loadMenuItems()" class="form-control" style="font-weight: 600; padding: 0.65rem;"></select>
         </div>
 
         <div>
-          <label class="form-label" style="font-weight: 700;">🥬 Dietary Preference</label>
+          <label class="form-label">🥬 Dietary Preference</label>
           <select onchange="filterVeg(this.value)" class="form-control" style="font-weight: 600; padding: 0.65rem;">
             <option value="">All Items (Veg & Non-Veg)</option>
             <option value="true">Pure Vegetarian Only (🥬)</option>
             <option value="false">Non-Vegetarian Only (🍗)</option>
           </select>
+        </div>
+
+        <div>
+          <label class="form-label" style="opacity: 0;">Special</label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.9rem; cursor: pointer; background: var(--bg-main); padding: 0.65rem 0.85rem; border-radius: 8px; border: 1px solid var(--border);">
+            <input type="checkbox" id="today-special-checkbox" onchange="loadMenuItems()" style="width: 18px; height: 18px; accent-color: var(--primary);">
+            🔥 Today's Special Only
+          </label>
         </div>
       </div>
     </div>
@@ -47,35 +73,35 @@
     <div style="margin-bottom: 1.75rem;">
       <div style="display: flex; gap: 0.65rem; overflow-x: auto; padding: 0.25rem 0.25rem 0.75rem; scrollbar-width: none;">
         <button class="cat-chip active" data-cat="" onclick="filterCategory('')">🍽️ All Categories</button>
-        <button class="cat-chip" data-cat="Meals" onclick="filterCategory('Meals')">🍱 Meals</button>
         <button class="cat-chip" data-cat="Breakfast" onclick="filterCategory('Breakfast')">🥐 Breakfast</button>
         <button class="cat-chip" data-cat="Lunch" onclick="filterCategory('Lunch')">🍛 Lunch</button>
+        <button class="cat-chip" data-cat="Meals" onclick="filterCategory('Meals')">🍱 Meals</button>
         <button class="cat-chip" data-cat="Snacks" onclick="filterCategory('Snacks')">🥪 Snacks</button>
         <button class="cat-chip" data-cat="Beverages" onclick="filterCategory('Beverages')">☕ Beverages</button>
         <button class="cat-chip" data-cat="Fast Food" onclick="filterCategory('Fast Food')">🍜 Fast Food</button>
+        <button class="cat-chip" data-cat="Healthy Food" onclick="filterCategory('Healthy Food')">🥗 Healthy Food</button>
+        <button class="cat-chip" data-cat="Special Items" onclick="filterCategory('Special Items')">⭐ Special Items</button>
       </div>
     </div>
 
     <!-- Menu Grid -->
-    <div id="menu-grid" class="grid-cards">
-      <!-- Skeleton Loaders -->
-      <div class="card" style="padding: 1rem;">
-        <div class="skeleton" style="height: 160px; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 20px; width: 70%; margin-bottom: 0.5rem;"></div>
-        <div class="skeleton" style="height: 14px; width: 40%; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 38px;"></div>
+    <div id="menu-grid" class="grid-cards"></div>
+  </div>
+
+  <!-- Cart Modal Drawer -->
+  <div id="cart-modal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 100%; max-width: 480px; max-height: 85vh; margin: 1rem; display: flex; flex-direction: column;">
+      <div style="padding: 1.25rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="font-weight: 800; color: var(--primary-dark);">🛒 Your Food Order Cart</h3>
+        <button onclick="closeCartModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
       </div>
-      <div class="card" style="padding: 1rem;">
-        <div class="skeleton" style="height: 160px; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 20px; width: 70%; margin-bottom: 0.5rem;"></div>
-        <div class="skeleton" style="height: 14px; width: 40%; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 38px;"></div>
-      </div>
-      <div class="card" style="padding: 1rem;">
-        <div class="skeleton" style="height: 160px; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 20px; width: 70%; margin-bottom: 0.5rem;"></div>
-        <div class="skeleton" style="height: 14px; width: 40%; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 38px;"></div>
+      <div id="cart-items-container" style="padding: 1.25rem; overflow-y: auto; flex-grow: 1;"></div>
+      <div style="padding: 1.25rem; border-top: 1px solid var(--border); background: var(--bg-main);">
+        <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 1.1rem; margin-bottom: 1rem;">
+          <span>Subtotal:</span>
+          <span id="cart-subtotal">₹0</span>
+        </div>
+        <button onclick="alert('Order placement will process with digital token generation!')" class="btn btn-primary" style="width: 100%; padding: 0.8rem;">Proceed to Checkout & Get Token</button>
       </div>
     </div>
   </div>
@@ -83,7 +109,46 @@
   <script src="/js/api.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/cart.js"></script>
-  <script src="/js/app.js"></script>
+  <script src="/js/data/foods.js"></script>
+  <script src="/js/foodService.js"></script>
   <script src="/js/menu.js"></script>
+  <script>
+    function showCartModal() {
+      const modal = document.getElementById('cart-modal');
+      const container = document.getElementById('cart-items-container');
+      const subtotalEl = document.getElementById('cart-subtotal');
+      const items = Cart.getItems();
+
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 2rem 0; color: var(--text-muted);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🛒</div>
+            <p>Your cart is empty. Add delicious food items from the menu!</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = items.map(item => `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+            <div>
+              <strong style="display: block; font-weight: 700;">${item.name}</strong>
+              <span style="font-size: 0.85rem; color: var(--text-muted);">₹${item.price} x ${item.quantity}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <button onclick="Cart.updateQuantity('${item._id}', -1); showCartModal();" class="btn btn-outline" style="padding: 2px 8px;">-</button>
+              <span style="font-weight: 700;">${item.quantity}</span>
+              <button onclick="Cart.updateQuantity('${item._id}', 1); showCartModal();" class="btn btn-outline" style="padding: 2px 8px;">+</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      subtotalEl.innerText = `₹${Cart.getSubtotal()}`;
+      modal.style.display = 'flex';
+    }
+
+    function closeCartModal() {
+      document.getElementById('cart-modal').style.display = 'none';
+    }
+  </script>
 </body>
 </html>

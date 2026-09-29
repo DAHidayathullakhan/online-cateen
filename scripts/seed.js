@@ -2,8 +2,11 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
+
+
 
 const User = require('../backend/models/User');
 const StudentProfile = require('../backend/models/StudentProfile');
@@ -11,20 +14,18 @@ const { ProgramType, Course, Department, AcademicYear, Semester, Section } = req
 const Branch = require('../backend/models/Branch');
 const MenuCategory = require('../backend/models/MenuCategory');
 const MenuItem = require('../backend/models/MenuItem');
-const PickupWindow = require('../backend/models/PickupWindow');
-const { Inventory } = require('../backend/models/Inventory');
-const { DeliveryLocation } = require('../backend/models/Delivery');
-const Coupon = require('../backend/models/Coupon');
-const { Wallet } = require('../backend/models/Wallet');
-const { MealPlan } = require('../backend/models/MealSubscription');
-const { Ingredient, Vendor, Holiday } = require('../backend/models/SupplyChainModels');
 const connectDB = require('../backend/config/db');
 
 const seedData = async () => {
   try {
-    await connectDB();
-    console.log('Clearing old database collections...');
+    if (mongoose.connection.readyState !== 1) {
+      console.log('Connecting to MongoDB for seed...');
+      await connectDB();
+    } else {
+      console.log('Using active MongoDB connection for seed...');
+    }
 
+    console.log('Clearing old database collections...');
     await User.deleteMany({});
     await StudentProfile.deleteMany({});
     await ProgramType.deleteMany({});
@@ -36,17 +37,7 @@ const seedData = async () => {
     await Branch.deleteMany({});
     await MenuCategory.deleteMany({});
     await MenuItem.deleteMany({});
-    await PickupWindow.deleteMany({});
-    await Inventory.deleteMany({});
-    await DeliveryLocation.deleteMany({});
-    await Coupon.deleteMany({});
-    await Wallet.deleteMany({});
-    await MealPlan.deleteMany({});
-    await Ingredient.deleteMany({});
-    await Vendor.deleteMany({});
-    await Holiday.deleteMany({});
 
-    console.log('Seeding Academic Structure...');
     await ProgramType.insertMany([
       { name: 'Degree', code: 'DEG' },
       { name: "Master's", code: 'MST' }
@@ -94,7 +85,6 @@ const seedData = async () => {
       { name: 'Section B', code: 'SEC_B' }
     ]);
 
-    console.log('Seeding Canteen Branches...');
     const branches = await Branch.insertMany([
       { name: 'Main Canteen', code: 'MAIN', location: 'Central Academic Quad' },
       { name: 'Hostel Canteen', code: 'HOSTEL', location: 'Hostel Block A Ground Floor' },
@@ -102,167 +92,480 @@ const seedData = async () => {
       { name: 'Evening Snacks Counter', code: 'SNACKS', location: 'Sports Complex Pavilion' }
     ]);
 
+    const allBranchIds = branches.map(b => b._id);
     const mainBranch = branches[0];
     const hostelBranch = branches[1];
 
-    console.log('Seeding Menu Categories & Food Items...');
-    const categories = ['Breakfast', 'Lunch', 'Snacks', 'Beverages', 'Meals', 'Fast Food', 'Healthy Food', 'Special Items'];
-    for (let i = 0; i < categories.length; i++) {
-      await MenuCategory.create({ name: categories[i], displayOrder: i + 1 });
+    const categoryNames = ['Breakfast', 'Lunch', 'Snacks', 'Beverages', 'Meals', 'Fast Food', 'Healthy Food', 'Special Items'];
+    for (let i = 0; i < categoryNames.length; i++) {
+      await MenuCategory.create({ name: categoryNames[i], displayOrder: i + 1 });
     }
 
-    const menuItems = await MenuItem.insertMany([
+    const itemsToSeed = [
+      // BREAKFAST
+      {
+        name: 'Soft Steamed Idli (2 pcs)',
+        description: 'Traditional steamed rice and lentil cakes served with coconut chutney and hot sambar.',
+        price: 30,
+        category: 'Breakfast',
+        isVegetarian: true,
+        image: '/images/food/idli.jpg',
+        stockQuantity: 80,
+        preparationTime: 10,
+        popularity: 50,
+        isTodaySpecial: false,
+        ingredients: ['Rice', 'Urad Dal', 'Coconut', 'Spices'],
+        allergyInfo: [],
+        dietaryTags: ['Vegetarian', 'Gluten-Free'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Crispy Medu Vada (2 pcs)',
+        description: 'Golden crispy lentil donuts seasoned with black pepper, curry leaves, and ginger.',
+        price: 35,
+        category: 'Breakfast',
+        isVegetarian: true,
+        image: '/images/food/vada.jpg',
+        stockQuantity: 60,
+        preparationTime: 10,
+        popularity: 42,
+        isTodaySpecial: false,
+        ingredients: ['Urad Dal', 'Black Pepper', 'Curry Leaves', 'Oil'],
+        allergyInfo: [],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Butter Masala Dosa',
+        description: 'Crispy golden rice crepe filled with spiced potato masala and topped with fresh butter.',
+        price: 60,
+        category: 'Breakfast',
+        isVegetarian: true,
+        image: '/images/food/masala-dosa.jpg',
+        stockQuantity: 50,
+        preparationTime: 12,
+        popularity: 75,
+        isTodaySpecial: true,
+        ingredients: ['Rice Batter', 'Potato', 'Butter', 'Onion', 'Spices'],
+        allergyInfo: ['Dairy'],
+        dietaryTags: ['Vegetarian'],
+        branches: [mainBranch._id, hostelBranch._id]
+      },
+      {
+        name: 'Crispy Plain Dosa',
+        description: 'Thin crispy crepe served with 3 varieties of chutneys and aromatic sambar.',
+        price: 45,
+        category: 'Breakfast',
+        isVegetarian: true,
+        image: '/images/food/plain-dosa.jpg',
+        stockQuantity: 50,
+        preparationTime: 8,
+        popularity: 35,
+        ingredients: ['Rice Batter', 'Oil', 'Coconut'],
+        allergyInfo: [],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Poori Bhaji (3 pcs)',
+        description: 'Deep-fried fluffy whole wheat pooris served with mild potato masala curry.',
+        price: 50,
+        category: 'Breakfast',
+        isVegetarian: true,
+        image: '/images/food/poori.jpg',
+        stockQuantity: 45,
+        preparationTime: 10,
+        popularity: 40,
+        ingredients: ['Wheat Flour', 'Potato', 'Spices'],
+        allergyInfo: ['Gluten'],
+        dietaryTags: ['Vegetarian'],
+        branches: [mainBranch._id, hostelBranch._id]
+      },
+      {
+        name: 'Rava Upma & Chutney',
+        description: 'Roasted semolina cooked with mustard seeds, green chillies, cashews, and veggies.',
+        price: 35,
+        category: 'Breakfast',
+        isVegetarian: true,
+        image: '/images/food/upma.jpg',
+        stockQuantity: 40,
+        preparationTime: 5,
+        popularity: 20,
+        ingredients: ['Semolina', 'Mustard', 'Veggies', 'Cashew'],
+        allergyInfo: ['Gluten', 'Nuts'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+
+      // LUNCH & MEALS
+      {
+        name: 'South Indian Rice Bath',
+        description: 'Aromatic rice cooked with seasonal vegetables, coconut, and freshly ground spices.',
+        price: 55,
+        category: 'Lunch',
+        isVegetarian: true,
+        image: '/images/food/rice-bath.jpg',
+        stockQuantity: 50,
+        preparationTime: 10,
+        popularity: 60,
+        ingredients: ['Rice', 'Mixed Veggies', 'Spices'],
+        allergyInfo: [],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
       {
         name: 'South Indian Veg Meals',
-        description: 'Complete meal with rice, sambar, rasam, curd, papad, and 2 vegetable curries.',
+        description: 'Complete thali with steamed rice, sambar, rasam, curd, papad, pickle & 2 vegetable curries.',
         price: 90,
         category: 'Meals',
         isVegetarian: true,
-        isAvailable: true,
-        stockQuantity: 60,
+        image: '/images/food/veg-meals.jpg',
+        stockQuantity: 100,
         preparationTime: 12,
+        popularity: 90,
         isTodaySpecial: true,
-        ingredients: ['Rice', 'Lentils', 'Vegetables', 'Curd'],
-        allergyInfo: [],
+        ingredients: ['Rice', 'Lentils', 'Seasonal Vegetables', 'Curd', 'Papad'],
+        allergyInfo: ['Dairy'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Executive Special Meal',
+        description: 'Premium thali with Paneer Butter Masala, Dal Makhani, Jeera Rice, 2 Butter Roti, Gulab Jamun & Salad.',
+        price: 130,
+        category: 'Meals',
+        isVegetarian: true,
+        image: '/images/food/special-meal.jpg',
+        stockQuantity: 50,
+        preparationTime: 15,
+        popularity: 85,
+        isTodaySpecial: true,
+        ingredients: ['Paneer', 'Butter', 'Basmati Rice', 'Roti', 'Sweets'],
+        allergyInfo: ['Dairy', 'Gluten'],
         dietaryTags: ['Vegetarian'],
         branches: [mainBranch._id, hostelBranch._id]
       },
       {
         name: 'Curd Rice & Pickle',
-        description: 'Refreshing curd rice tempered with mustard seeds and curry leaves.',
+        description: 'Refreshing curd rice tempered with mustard seeds, curry leaves, and green chillies.',
         price: 50,
-        category: 'Meals',
-        isVegetarian: true,
-        isAvailable: true,
-        stockQuantity: 40,
-        preparationTime: 5,
-        popularity: 15,
-        ingredients: ['Rice', 'Curd', 'Mustard', 'Curry Leaves'],
-        allergyInfo: ['Dairy'],
-        dietaryTags: ['Vegetarian', 'No Onion', 'No Garlic'],
-        branches: [mainBranch._id, hostelBranch._id]
-      },
-      {
-        name: 'Paneer Butter Masala Chapati Combo',
-        description: '3 soft whole wheat chapatis served with rich paneer butter masala gravy.',
-        price: 110,
         category: 'Lunch',
         isVegetarian: true,
-        isAvailable: true,
-        stockQuantity: 30,
-        preparationTime: 15,
-        isTodaySpecial: true,
-        ingredients: ['Paneer', 'Butter', 'Whole Wheat', 'Tomato Gravy'],
-        allergyInfo: ['Dairy', 'Gluten'],
+        image: '/images/food/curd-rice.jpg',
+        stockQuantity: 60,
+        preparationTime: 5,
+        popularity: 65,
+        ingredients: ['Rice', 'Fresh Curd', 'Mustard', 'Curry Leaves'],
+        allergyInfo: ['Dairy'],
         dietaryTags: ['Vegetarian'],
-        branches: [mainBranch._id]
+        branches: allBranchIds
       },
       {
+        name: 'Tangy Lemon Rice',
+        description: 'Fragrant rice seasoned with fresh lemon juice, turmeric, roasted peanuts, and curry leaves.',
+        price: 45,
+        category: 'Lunch',
+        isVegetarian: true,
+        image: '/images/food/lemon-rice.jpg',
+        stockQuantity: 50,
+        preparationTime: 5,
+        popularity: 45,
+        ingredients: ['Rice', 'Lemon', 'Peanuts', 'Turmeric'],
+        allergyInfo: ['Peanuts'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Karnataka Bisi Bele Bhath',
+        description: 'Traditional Karnataka spicy lentil rice cooked with vegetables, tamarind, pure ghee, and topped with golden boondi.',
+        price: 65,
+        category: 'Lunch',
+        isVegetarian: true,
+        image: '/images/food/bisibele-bath.jpg',
+        stockQuantity: 55,
+        preparationTime: 8,
+        popularity: 75,
+        isTodaySpecial: true,
+        ingredients: ['Rice', 'Toor Dal', 'Mixed Veggies', 'Ghee', 'Boondi'],
+        allergyInfo: ['Dairy'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Authentic Sambar Rice',
+        description: 'Comforting South Indian sambar rice simmered with shallots, drumsticks, tomatoes, and pure cow ghee.',
+        price: 55,
+        category: 'Lunch',
+        isVegetarian: true,
+        image: '/images/food/sambar-rice.jpg',
+        stockQuantity: 50,
+        preparationTime: 6,
+        popularity: 70,
+        isTodaySpecial: false,
+        ingredients: ['Rice', 'Toor Dal', 'Shallots', 'Drumstick', 'Ghee'],
+        allergyInfo: ['Dairy'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Whole Wheat Chapati Combo (3 pcs)',
+        description: '3 soft whole wheat chapatis served with mixed veg curry.',
+        price: 40,
+        category: 'Lunch',
+        isVegetarian: true,
+        image: '/images/food/chapati.jpg',
+        stockQuantity: 50,
+        preparationTime: 10,
+        popularity: 40,
+        ingredients: ['Wheat Flour', 'Mixed Veg Curry'],
+        allergyInfo: ['Gluten'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Aloo Paratha with Curd',
+        description: 'North Indian flatbread stuffed with spiced mashed potatoes, served with fresh curd and pickle.',
+        price: 50,
+        category: 'Lunch',
+        isVegetarian: true,
+        image: '/images/food/paratha.jpg',
+        stockQuantity: 40,
+        preparationTime: 12,
+        popularity: 60,
+        isTodaySpecial: true,
+        ingredients: ['Wheat Flour', 'Potato', 'Butter', 'Curd'],
+        allergyInfo: ['Gluten', 'Dairy'],
+        dietaryTags: ['Vegetarian'],
+        branches: [mainBranch._id, hostelBranch._id]
+      },
+
+      // SNACKS
+      {
         name: 'Crispy Veg Samosa (2 pcs)',
-        description: 'Deep fried crispy pastry filled with spiced potato and pea stuffing.',
+        description: 'Golden deep-fried pastries stuffed with spiced potatoes, green peas, and herbs.',
         price: 30,
         category: 'Snacks',
         isVegetarian: true,
-        isAvailable: true,
-        stockQuantity: 100,
+        image: '/images/food/samosa.jpg',
+        stockQuantity: 120,
         preparationTime: 5,
-        popularity: 45,
-        ingredients: ['Potato', 'Peas', 'Flour', 'Spices'],
+        popularity: 95,
+        ingredients: ['Flour', 'Potato', 'Peas', 'Spices'],
         allergyInfo: ['Gluten'],
-        dietaryTags: ['Vegetarian', 'Jain'],
-        branches: [mainBranch._id, hostelBranch._id]
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
       },
       {
         name: 'Grilled Cheese Veg Sandwich',
-        description: 'Toasted white bread filled with fresh cucumber, tomato, cheese, and mint chutney.',
+        description: 'Toasted white bread filled with fresh cucumber, tomato, cheese, and green mint chutney.',
         price: 60,
         category: 'Snacks',
         isVegetarian: true,
-        isAvailable: true,
+        image: '/images/food/sandwich.jpg',
+        stockQuantity: 50,
+        preparationTime: 8,
+        popularity: 70,
+        ingredients: ['Bread', 'Process Cheese', 'Tomato', 'Cucumber'],
+        allergyInfo: ['Dairy', 'Gluten'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Hot Masala Maggi Noodles',
+        description: 'Classic campus favorite instant noodles cooked with butter, spices, and diced vegetables.',
+        price: 40,
+        category: 'Snacks',
+        isVegetarian: true,
+        image: '/images/food/maggi.jpg',
+        stockQuantity: 80,
+        preparationTime: 7,
+        popularity: 90,
+        ingredients: ['Maggi Noodles', 'Butter', 'Veggies', 'Maggi Masala'],
+        allergyInfo: ['Gluten'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Cream Biscuits Packet',
+        description: 'Pack of chocolate cream biscuits for quick snack cravings.',
+        price: 20,
+        category: 'Snacks',
+        isVegetarian: true,
+        image: '/images/food/biscuits.jpg',
+        stockQuantity: 100,
+        preparationTime: 1,
+        popularity: 25,
+        ingredients: ['Biscuits', 'Cocoa Cream'],
+        allergyInfo: ['Gluten', 'Dairy'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+
+      // BEVERAGES
+      {
+        name: 'Hot Masala Chai Tea',
+        description: 'Freshly brewed milk tea infused with cardamom, ginger, and aromatic spices.',
+        price: 15,
+        category: 'Beverages',
+        isVegetarian: true,
+        image: '/images/food/tea.jpg',
+        stockQuantity: 150,
+        preparationTime: 4,
+        popularity: 98,
+        ingredients: ['Tea Leaves', 'Milk', 'Ginger', 'Cardamom', 'Sugar'],
+        allergyInfo: ['Dairy'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'South Indian Filter Coffee',
+        description: 'Strong piping hot South Indian filter coffee made with fresh cow milk.',
+        price: 20,
+        category: 'Beverages',
+        isVegetarian: true,
+        image: '/images/food/coffee.jpg',
+        stockQuantity: 120,
+        preparationTime: 4,
+        popularity: 85,
+        ingredients: ['Coffee Decoction', 'Milk', 'Sugar'],
+        allergyInfo: ['Dairy'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Fresh Lime Juice',
+        description: 'Refreshing sweet and salty fresh lemon juice with chilled sparkling soda.',
+        price: 30,
+        category: 'Beverages',
+        isVegetarian: true,
+        image: '/images/food/juice.jpg',
+        stockQuantity: 80,
+        preparationTime: 5,
+        popularity: 60,
+        ingredients: ['Lemon Juice', 'Soda', 'Mint', 'Sugar'],
+        allergyInfo: [],
+        dietaryTags: ['Vegetarian', 'Vegan'],
+        branches: allBranchIds
+      },
+
+      // FAST FOOD
+      {
+        name: 'Crispy Veg Burger',
+        description: 'Golden veggie patty inside a toasted sesame bun with lettuce, tomato, and mayo.',
+        price: 80,
+        category: 'Fast Food',
+        isVegetarian: true,
+        image: '/images/food/veg-burger.jpg',
         stockQuantity: 45,
-        preparationTime: 10,
-        popularity: 30,
-        ingredients: ['Bread', 'Cheese', 'Tomato', 'Cucumber'],
+        preparationTime: 12,
+        popularity: 80,
+        ingredients: ['Bun', 'Veg Patty', 'Mayo', 'Lettuce'],
+        allergyInfo: ['Gluten'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Cheese Corn Pizza (8 inch)',
+        description: 'Personal size thin-crust pizza loaded with mozzarella cheese and sweet corn.',
+        price: 120,
+        category: 'Fast Food',
+        isVegetarian: true,
+        image: '/images/food/pizza.jpg',
+        stockQuantity: 30,
+        preparationTime: 15,
+        popularity: 85,
+        isTodaySpecial: true,
+        ingredients: ['Pizza Base', 'Mozzarella', 'Sweet Corn', 'Oregano'],
         allergyInfo: ['Dairy', 'Gluten'],
         dietaryTags: ['Vegetarian'],
         branches: [mainBranch._id, hostelBranch._id]
+      },
+      {
+        name: 'Veg Hakka Noodles',
+        description: 'Wok-tossed noodles with shredded cabbage, capsicum, carrots, and soy sauce.',
+        price: 70,
+        category: 'Fast Food',
+        isVegetarian: true,
+        image: '/images/food/noodles.jpg',
+        stockQuantity: 40,
+        preparationTime: 12,
+        popularity: 70,
+        ingredients: ['Noodles', 'Soy Sauce', 'Cabbage', 'Capsicum'],
+        allergyInfo: ['Gluten', 'Soy'],
+        dietaryTags: ['Vegetarian'],
+        branches: allBranchIds
+      },
+
+      // HEALTHY FOOD
+      {
+        name: 'Fresh Seasonal Fruit Bowl',
+        description: 'Assorted fresh bowl of apple, banana, pomegranate, papaya, and watermelon.',
+        price: 60,
+        category: 'Healthy Food',
+        isVegetarian: true,
+        image: '/images/food/fruit-bowl.jpg',
+        stockQuantity: 30,
+        preparationTime: 5,
+        popularity: 45,
+        ingredients: ['Apple', 'Banana', 'Pomegranate', 'Papaya'],
+        allergyInfo: [],
+        dietaryTags: ['Vegetarian', 'Vegan', 'Gluten-Free'],
+        branches: allBranchIds
+      },
+      {
+        name: 'Protein Sprouts Salad',
+        description: 'Sprouted mung beans and chana salad tossed with onion, tomato, lemon, and chaat masala.',
+        price: 50,
+        category: 'Healthy Food',
+        isVegetarian: true,
+        image: '/images/food/sprouts-salad.jpg',
+        stockQuantity: 35,
+        preparationTime: 5,
+        popularity: 50,
+        ingredients: ['Sprouted Mung', 'Chana', 'Lemon', 'Cucumber'],
+        allergyInfo: [],
+        dietaryTags: ['Vegetarian', 'Gluten-Free', 'High-Protein'],
+        branches: allBranchIds
+      },
+
+      // SPECIAL ITEMS
+      {
+        name: 'Paneer Tikka Roll',
+        description: 'Char-grilled cottage cheese cubes wrapped in a soft paratha with mint chutney and onions.',
+        price: 90,
+        category: 'Special Items',
+        isVegetarian: true,
+        image: '/images/food/paneer-roll.jpg',
+        stockQuantity: 40,
+        preparationTime: 12,
+        popularity: 88,
+        isTodaySpecial: true,
+        ingredients: ['Paneer', 'Paratha', 'Mint Chutney', 'Onion'],
+        allergyInfo: ['Dairy', 'Gluten'],
+        dietaryTags: ['Vegetarian'],
+        branches: [mainBranch._id, hostelBranch._id]
+      },
+      {
+        name: 'Special Hyderabadi Veg Biryani',
+        description: 'Aromatic basmati rice dum cooked with marinated paneer, vegetables, mint, and saffron served with raita.',
+        price: 140,
+        category: 'Special Items',
+        isVegetarian: true,
+        image: '/images/food/biryani.jpg',
+        stockQuantity: 40,
+        preparationTime: 15,
+        popularity: 95,
+        isTodaySpecial: true,
+        ingredients: ['Basmati Rice', 'Paneer', 'Biryani Spices', 'Raita'],
+        allergyInfo: ['Dairy'],
+        dietaryTags: ['Vegetarian'],
+        branches: [mainBranch._id, hostelBranch._id]
       }
-    ]);
-
-    console.log('Seeding Multi-Branch Inventory...');
-    for (const b of branches) {
-      for (const item of menuItems) {
-        await Inventory.create({
-          menuItem: item._id,
-          branch: b._id,
-          quantity: Math.floor(25 + Math.random() * 40),
-          minStock: 10,
-          maxStock: 100
-        });
-      }
-    }
-
-    console.log('Seeding Raw Ingredients & Vendors...');
-    await Ingredient.insertMany([
-      { name: 'Basmati Rice', unit: 'kg', quantity: 150, minStock: 30, branch: mainBranch._id, supplier: 'Fresh Grain Co' },
-      { name: 'Toor Dal', unit: 'kg', quantity: 80, minStock: 20, branch: mainBranch._id, supplier: 'Fresh Grain Co' },
-      { name: 'Fresh Milk', unit: 'L', quantity: 100, minStock: 25, branch: mainBranch._id, supplier: 'Campus Dairy Ltd' },
-      { name: 'Refined Oil', unit: 'L', quantity: 60, minStock: 15, branch: mainBranch._id, supplier: 'SunOil Dist' }
-    ]);
-
-    await Vendor.insertMany([
-      { name: 'Fresh Grain Co', contactPerson: 'Mr. Gupta', phone: '9876500001', suppliedIngredients: ['Rice', 'Dal', 'Flour'] },
-      { name: 'Campus Dairy Ltd', contactPerson: 'Mr. Milkman', phone: '9876500002', suppliedIngredients: ['Milk', 'Paneer', 'Butter', 'Curd'] }
-    ]);
-
-    console.log('Seeding Meal Plans...');
-    await MealPlan.insertMany([
-      { planName: '5 Lunches Express Pass', totalMeals: 5, price: 400, validityDays: 14, eligibleBranches: [mainBranch._id] },
-      { planName: '10 Lunches Monthly Plan', totalMeals: 10, price: 750, validityDays: 30, eligibleBranches: [mainBranch._id, hostelBranch._id] },
-      { planName: '20 Meals Unlimited Pass', totalMeals: 20, price: 1400, validityDays: 30, eligibleBranches: [mainBranch._id, hostelBranch._id] }
-    ]);
-
-    console.log('Seeding Lunch Pickup Windows for Today...');
-    const todayStr = new Date().toISOString().split('T')[0];
-    const timeSlots = [
-      { start: '11:45 AM', end: '12:00 PM' },
-      { start: '12:00 PM', end: '12:15 PM' },
-      { start: '12:15 PM', end: '12:30 PM' },
-      { start: '12:30 PM', end: '12:45 PM' },
-      { start: '12:45 PM', end: '01:00 PM' },
-      { start: '01:00 PM', end: '01:15 PM' }
     ];
 
-    for (const slot of timeSlots) {
-      await PickupWindow.create({
-        branch: mainBranch._id,
-        date: todayStr,
-        startTime: slot.start,
-        endTime: slot.end,
-        maxOrders: 15,
-        currentOrders: 2
-      });
-    }
+    const insertedItems = await MenuItem.insertMany(itemsToSeed);
+    console.log(`Inserted: ${insertedItems.length} food items`);
 
-    console.log('Seeding Delivery Locations...');
-    await DeliveryLocation.insertMany([
-      { buildingName: 'Hostel A', floors: ['Ground Floor', '1st Floor', '2nd Floor', '3rd Floor'] },
-      { buildingName: 'Hostel B', floors: ['Ground Floor', '1st Floor', '2nd Floor'] },
-      { buildingName: 'Department Block B', floors: ['1st Floor', '2nd Floor', '3rd Floor'] }
-    ]);
-
-    console.log('Seeding Offers & Coupons...');
-    await Coupon.create({
-      code: 'BCA10',
-      title: 'BCA Student Special 10% Off',
-      description: 'Exclusive 10% discount on snacks for BCA computer application students.',
-      discountType: 'percentage',
-      discountValue: 10,
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      eligibleCourses: ['BCA']
-    });
-
-    console.log('Seeding Demo Users & Wallets...');
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash('password123', salt);
 
@@ -281,9 +584,6 @@ const seedData = async () => {
         ...u,
         password: passwordHash
       });
-
-      // Initialize ₹500 Campus Wallet
-      await Wallet.create({ user: createdUser._id, balance: 500 });
 
       if (u.role === 'Student' || u.role === "Master's Student") {
         await StudentProfile.create({
@@ -304,22 +604,19 @@ const seedData = async () => {
       }
     }
 
-    console.log('\n=============================================================');
-    console.log('Advanced Smart Canteen Seed Completed Successfully!');
-    console.log('Demo Credentials for Testing (Password for all accounts: password123):');
-    console.log('1. Admin: admin@canteen.edu');
-    console.log('2. Kitchen Staff: kitchen@canteen.edu');
-    console.log('3. Canteen Operator: operator@canteen.edu');
-    console.log('4. Delivery Staff: delivery@canteen.edu');
-    console.log('5. Branch Manager: manager@canteen.edu');
-    console.log('6. Student: student@canteen.edu');
-    console.log('7. Master\'s Student: mstudent@canteen.edu');
-    console.log('=============================================================\n');
-    process.exit(0);
+    console.log('Seed completed successfully');
+    return true;
   } catch (err) {
     console.error('Seed execution error:', err);
-    process.exit(1);
+    throw err;
   }
 };
 
-seedData();
+if (require.main === module) {
+  seedData()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1));
+}
+
+module.exports = seedData;
+

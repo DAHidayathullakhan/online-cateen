@@ -6,19 +6,19 @@ const studentProfileSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      unique: true,
-      index: true
+      unique: true
     },
     studentId: {
       type: String,
       required: true,
-      trim: true,
-      unique: true
+      unique: true,
+      uppercase: true,
+      trim: true
     },
     degreeLevel: {
       type: String,
       enum: ['Degree', "Master's"],
-      required: true
+      default: 'Degree'
     },
     programType: {
       type: String,
@@ -34,26 +34,26 @@ const studentProfileSchema = new mongoose.Schema(
     },
     year: {
       type: String,
-      required: true
+      default: '1st Year'
     },
     semester: {
       type: String,
-      required: true
+      default: '1st Semester'
     },
     section: {
       type: String,
-      default: 'A'
+      default: 'Section A'
     },
     hostelBuilding: {
       type: String,
-      required: true
+      default: 'None'
     },
     roomNumber: {
       type: String,
-      required: true
+      default: ''
     },
-    dietaryPreferences: [{ type: String }], // e.g., ["Vegetarian", "Jain", "No Onion", "No Garlic"]
-    allergies: [{ type: String }] // e.g., ["Peanuts", "Dairy", "Gluten", "Soy"]
+    dietaryPreferences: [{ type: String }],
+    allergies: [{ type: String }]
   },
   { timestamps: true }
 );

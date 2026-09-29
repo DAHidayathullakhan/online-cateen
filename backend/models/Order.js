@@ -1,14 +1,33 @@
 const mongoose = require('mongoose');
 
 const orderItemSchema = new mongoose.Schema({
-  menuItem: {
+  item: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'MenuItem',
     required: true
   },
-  name: { type: String, required: true },
-  price: { type: Number, required: true },
-  quantity: { type: Number, required: true, min: 1 }
+  name: {
+    type: String,
+    required: true
+  },
+  price: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  image: {
+    type: String,
+    default: '/images/food/placeholder.jpg'
+  },
+  preparationTime: {
+    type: Number,
+    default: 10
+  }
 });
 
 const orderSchema = new mongoose.Schema(
@@ -19,73 +38,95 @@ const orderSchema = new mongoose.Schema(
       unique: true,
       index: true
     },
-    student: {
+    tokenNumber: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true
+    },
+    user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
       index: true
     },
-    branch: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Branch',
+    studentName: {
+      type: String,
+      required: true
+    },
+    studentId: {
+      type: String,
+      required: true
+    },
+    items: [orderItemSchema],
+    subtotal: {
+      type: Number,
       required: true,
-      index: true
+      min: 0
+    },
+    deliveryFee: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    totalAmount: {
+      type: Number,
+      required: true,
+      min: 0
     },
     orderType: {
       type: String,
       enum: ['Pickup', 'Room Delivery'],
-      required: true
+      default: 'Pickup'
     },
     pickupWindow: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'PickupWindow'
+      type: String
     },
     deliveryLocation: {
-      building: String,
-      floor: String,
-      roomNumber: String
+      type: String
     },
-    items: [orderItemSchema],
-    foodTotal: { type: Number, required: true },
-    deliveryCharge: { type: Number, default: 0 },
-    discountAmount: { type: Number, default: 0 },
-    couponCode: { type: String, default: null },
-    finalAmount: { type: Number, required: true },
+    roomNumber: {
+      type: String
+    },
+    branch: {
+      type: String,
+      default: 'Main Canteen'
+    },
     status: {
       type: String,
-      enum: ['NEW', 'ACCEPTED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'],
-      default: 'NEW',
+      enum: ['Confirmed', 'Preparing', 'Ready', 'Completed', 'Cancelled'],
+      default: 'Confirmed',
       index: true
-    },
-    paymentStatus: {
-      type: String,
-      enum: ['PENDING', 'PAID', 'FAILED', 'REFUNDED'],
-      default: 'PAID'
     },
     paymentMethod: {
       type: String,
-      default: 'Campus Wallet / Mock Pay'
+      enum: ['CASH', 'ONLINE'],
+      required: true
     },
-    specialInstructions: { type: String, default: '' },
-    queueNumber: { type: Number },
-    digitalToken: {
+    paymentStatus: {
+      type: String,
+      enum: ['PENDING', 'PAID', 'FAILED', 'REFUNDED', 'CANCELLED'],
+      default: 'PENDING',
+      index: true
+    },
+    paidAt: {
+      type: Date
+    },
+    paidBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'DigitalToken'
+      ref: 'User'
     },
-    groupOrder: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'GroupOrder'
+    tokenStatus: {
+      type: String,
+      enum: ['ACTIVE', 'USED', 'EXPIRED'],
+      default: 'ACTIVE',
+      index: true
     },
-    preOrderDate: {
-      type: String // YYYY-MM-DD for pre-orders
+    tokenUsedAt: {
+      type: Date
     },
-    preparationTimeEstimated: {
-      type: Number, // in minutes
-      default: 10
-    },
-    isModified: {
-      type: Boolean,
-      default: false
+    qrCodeData: {
+      type: String
     }
   },
   { timestamps: true }

@@ -1,63 +1,69 @@
-const DigitalToken = require('../models/DigitalToken');
 const Order = require('../models/Order');
-const TokenService = require('../services/tokenService');
-const { logAudit } = require('../utils/auditLogger');
 
-// GET /api/tokens/order/:orderId
-exports.getTokenByOrderId = async (req, res, next) => {
-  try {
-    const token = await DigitalToken.findOne({ order: req.params.orderId })
-      .populate({
-        path: 'order',
-        populate: [{ path: 'items.menuItem' }, { path: 'branch' }, { path: 'pickupWindow' }]
-      })
-      .populate('student', 'name email phone studentId')
-      .populate('branch')
-      .populate('pickupWindow');
-
-    if (!token) {
-      return res.status(404).json({ success: false, message: 'Digital token not found for this order.' });
-    }
-
-    // Ownership check for students
-    if ((req.user.role === 'Student' || req.user.role === "Master's Student") && token.student._id.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Access denied.' });
-    }
-
-    res.json({ success: true, data: token });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// POST /api/tokens/verify (Canteen Operator / Admin)
 exports.verifyToken = async (req, res, next) => {
   try {
-    const { tokenNumber } = req.body;
-    if (!tokenNumber) {
-      return res.status(400).json({ success: false, message: 'Token number is required for verification.' });
+    const rawToken = (req.body.token || req.body.tokenNumber || '').trim();
+
+    if (!rawToken) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid token or QR code.' });
     }
 
-    const result = await TokenService.verifyToken(tokenNumber.trim(), req.user);
-    if (!result.success) {
-      return res.status(400).json(result);
-    }
-
-    // Mark order COMPLETED
-    if (result.token.order) {
-      await Order.findByIdAndUpdate(result.token.order._id, { status: 'COMPLETED' });
-    }
-
-    await logAudit({
-      user: req.user,
-      action: 'VERIFY_DIGITAL_TOKEN',
-      target: 'DigitalToken',
-      targetId: result.token._id,
-      details: { tokenNumber },
-      req
+    // Try finding order by token number or order number (case-insensitive)
+    const order = await Order.findOne({
+      $or: [
+        { tokenNumber: new RegExp(`^${rawToken}$`, 'i') },
+        { orderNumber: new RegExp(`^${rawToken}$`, 'i') }
+      ]
     });
 
-    res.json(result);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: `Token "${rawToken}" not found in canteen database.`
+      });
+    }
+
+    // Check if token was already used
+    if (order.tokenStatus === 'USED') {
+      const usedTime = order.tokenUsedAt ? new Date(order.tokenUsedAt).toLocaleTimeString() : 'earlier';
+      return res.status(400).json({
+        success: false,
+        message: `Token #${order.tokenNumber} has already been used and collected at ${usedTime}. Double collection prevented.`,
+        data: order
+      });
+    }
+
+    if (order.status === 'Cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: `Order #${order.orderNumber} was cancelled and cannot be collected.`
+      });
+    }
+
+    // Mark as collected
+    order.tokenStatus = 'USED';
+    order.tokenUsedAt = new Date();
+    order.status = 'Completed';
+
+    await order.save();
+
+    res.json({
+      success: true,
+      message: 'Order collected successfully.',
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        tokenNumber: order.tokenNumber,
+        studentName: order.studentName,
+        studentId: order.studentId,
+        items: order.items,
+        totalAmount: order.totalAmount,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        paymentMethod: order.paymentMethod,
+        collectedAt: order.tokenUsedAt
+      }
+    });
   } catch (err) {
     next(err);
   }

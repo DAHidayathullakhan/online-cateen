@@ -2,95 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" type="image/svg+xml" href="/images/food/default-food.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Campus Canteen | Order Food Online</title>
-  <link rel="stylesheet" href="/css/styles.css">
+  <title>Smart Campus Canteen — High-Speed Digital Canteen Platform</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
-<body>
-  <div id="navbar-container"></div>
-
-  <div class="container">
-    <!-- Hero Banner with Modern Gradient & Campus Food Illustration -->
-    <div class="hero-card">
-      <div style="position: relative; z-index: 2;">
-        <span class="role-badge" style="background: rgba(255,255,255,0.2); color: white; margin-bottom: 0.75rem; border: 1px solid rgba(255,255,255,0.3);">
-          ⚡ Instant Campus Pickup & Room Delivery
-        </span>
-        <h1>Delicious Campus Food, Zero Waiting Queue</h1>
-        <p>Pre-order hot meals, snacks, and beverages from your campus canteen. Choose pickup slots or hostel room delivery.</p>
-        
-        <div style="margin-top: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap; background: rgba(255,255,255,0.15); backdrop-filter: blur(12px); padding: 0.75rem; border-radius: var(--radius); border: 1px solid rgba(255,255,255,0.2);">
-          <div style="flex: 1; min-width: 260px; position: relative;">
-            <input type="text" id="search-input" class="form-control" style="background: white; color: var(--text-dark); border: none; padding-left: 2.25rem;" placeholder="Search samosa, meals, cold coffee, maggi...">
-            <span style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); font-size: 1rem; color: var(--text-muted);">🔍</span>
-          </div>
-          <select id="branch-select" onchange="loadMenuItems()" class="form-control" style="width: auto; min-width: 180px; background: white; color: var(--text-dark); border: none; font-weight: 600;"></select>
-        </div>
-      </div>
-    </div>
-
-    <!-- Category Filter Chips -->
-    <div style="margin-bottom: 1.75rem;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-        <h3 style="font-size: 1.1rem; color: var(--text-dark); margin: 0;">Explore Categories</h3>
-        <span style="font-size: 0.85rem; color: var(--text-muted);">Swipe for more ➔</span>
-      </div>
-      <div style="display: flex; gap: 0.65rem; overflow-x: auto; padding: 0.25rem 0.25rem 0.75rem; scrollbar-width: none;">
-        <button class="cat-chip active" data-cat="" onclick="filterCategory('')">🍽️ All Food</button>
-        <button class="cat-chip" data-cat="Meals" onclick="filterCategory('Meals')">🍱 Meals</button>
-        <button class="cat-chip" data-cat="Breakfast" onclick="filterCategory('Breakfast')">🥐 Breakfast</button>
-        <button class="cat-chip" data-cat="Lunch" onclick="filterCategory('Lunch')">🍛 Lunch</button>
-        <button class="cat-chip" data-cat="Snacks" onclick="filterCategory('Snacks')">🥪 Snacks</button>
-        <button class="cat-chip" data-cat="Beverages" onclick="filterCategory('Beverages')">☕ Beverages</button>
-        <button class="cat-chip" data-cat="Fast Food" onclick="filterCategory('Fast Food')">🍜 Fast Food</button>
-      </div>
-    </div>
-
-    <!-- Filters & Today's Special Toggle -->
-    <div class="card" style="padding: 1rem 1.25rem; margin-bottom: 1.75rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-      <div style="display: flex; align-items: center; gap: 1rem;">
-        <h2 style="font-size: 1.2rem; color: var(--primary-dark); margin: 0;">Popular Campus Specials</h2>
-        <span id="items-count-badge" class="status-badge status-NEW" style="font-size: 0.75rem;">Loading...</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 1.25rem;">
-        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--text-dark);">
-          <input type="checkbox" id="today-special-checkbox" onchange="loadMenuItems()" style="width: 18px; height: 18px; accent-color: var(--primary);">
-          ⭐ Today's Special Only
-        </label>
-      </div>
-    </div>
-
-    <!-- Food Items Grid -->
-    <div id="menu-grid" class="grid-cards">
-      <!-- Skeleton Loaders -->
-      <div class="card" style="padding: 1rem;">
-        <div class="skeleton" style="height: 160px; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 20px; width: 70%; margin-bottom: 0.5rem;"></div>
-        <div class="skeleton" style="height: 14px; width: 40%; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 38px;"></div>
-      </div>
-      <div class="card" style="padding: 1rem;">
-        <div class="skeleton" style="height: 160px; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 20px; width: 70%; margin-bottom: 0.5rem;"></div>
-        <div class="skeleton" style="height: 14px; width: 40%; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 38px;"></div>
-      </div>
-      <div class="card" style="padding: 1rem;">
-        <div class="skeleton" style="height: 160px; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 20px; width: 70%; margin-bottom: 0.5rem;"></div>
-        <div class="skeleton" style="height: 14px; width: 40%; margin-bottom: 1rem;"></div>
-        <div class="skeleton" style="height: 38px;"></div>
-      </div>
-    </div>
-  </div>
-
-  <script src="/js/api.js"></script>
-  <script src="/js/auth.js"></script>
-  <script src="/js/cart.js"></script>
-  <script src="/js/app.js"></script>
-  <script src="/js/menu.js"></script>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const tokenController = require('../controllers/tokenController');
-const { protect } = require('../middleware/authMiddleware');
-const { authorize } = require('../middleware/roleMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 
-router.get('/order/:orderId', protect, tokenController.getTokenByOrderId);
-router.post('/verify', protect, authorize('Admin', 'Canteen Operator', 'Kitchen Staff', 'Branch Manager'), tokenController.verifyToken);
+// Canteen Operator & Admin verify student token or QR code
+router.post(
+  '/verify',
+  protect,
+  authorize('Admin', 'Canteen Operator'),
+  tokenController.verifyToken
+);
 
 module.exports = router;

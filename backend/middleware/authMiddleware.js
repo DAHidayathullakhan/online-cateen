@@ -1,54 +1,38 @@
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-const protect = (req, res, next) => {
+const protect = async (req, res, next) => {
   let token;
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies && req.cookies.token) {
-    token = req.cookies.token;
   }
 
   if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'Access denied. No authentication token provided.'
-    });
+    return res.status(401).json({ success: false, message: 'Access denied. No authentication token provided.' });
   }
 
   try {
-    const secret = process.env.JWT_SECRET || 'smart_campus_canteen_jwt_secret_token_key_2026';
-    const decoded = jwt.verify(token, secret);
-    req.user = decoded;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'smart_campus_canteen_jwt_secret_key_2026_super_secure');
+    req.user = await User.findById(decoded.id).select('-password');
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'User belonging to this token no longer exists.' });
+    }
     next();
   } catch (err) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid or expired authentication token.'
-    });
+    return res.status(401).json({ success: false, message: 'Session expired or invalid token. Please log in again.' });
   }
 };
 
-const optionalAuth = (req, res, next) => {
-  let token;
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    token = req.headers.authorization.split(' ')[1];
-  }
-
-  if (token) {
-    try {
-      const secret = process.env.JWT_SECRET || 'smart_campus_canteen_jwt_secret_token_key_2026';
-      req.user = jwt.verify(token, secret);
-    } catch (e) {
-      // Ignore token failure for optional routes
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `User role '${req.user ? req.user.role : 'Guest'}' is not authorized to access this route.`
+      });
     }
-  }
-  next();
+    next();
+  };
 };
 
-module.exports = { protect, optionalAuth };
+module.exports = { protect, authorize };

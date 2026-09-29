@@ -1,25 +1,18 @@
 {
   "name": "smart-campus-canteen",
-  "version": "1.0.0",
-  "description": "Full-stack Smart Campus Canteen food ordering and management platform",
+  "version": "2.0.0",
+  "description": "Full-stack Smart Campus Canteen food ordering and campus management platform",
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
     "dev": "node backend/server.js",
+    "build": "vite build",
     "seed": "node scripts/seed.js",
     "test": "node tests/api.test.js"
   },
-  "keywords": [
-    "canteen",
-    "express",
-    "mongodb",
-    "jwt",
-    "fullstack"
-  ],
-  "author": "Smart Campus Canteen Team",
-  "license": "ISC",
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "compression": "^1.8.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -27,10 +20,23 @@
     "express-validator": "^7.1.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^1.48.0",
     "mongoose": "^8.4.1",
-    "qrcode": "^1.5.3"
+    "multer": "^2.4.0",
+    "qrcode": "^1.5.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
-    "mongodb-memory-server": "^9.2.0"
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "autoprefixer": "^10.6.1",
+    "mongodb-memory-server": "^9.2.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
   }
 }

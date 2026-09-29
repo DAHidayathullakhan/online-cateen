@@ -1,44 +1,46 @@
-// Authentication Module
 const Auth = {
-  getUser: () => {
-    try {
-      return JSON.parse(localStorage.getItem('canteen_user')) || null;
-    } catch (e) {
-      return null;
-    }
+  getToken() {
+    return localStorage.getItem('token');
   },
-
-  getToken: () => localStorage.getItem('canteen_token') || null,
-
-  isLoggedIn: () => Boolean(localStorage.getItem('canteen_token')),
-
-  saveSession: (token, user) => {
-    localStorage.setItem('canteen_token', token);
-    localStorage.setItem('canteen_user', JSON.stringify(user));
+  getUser() {
+    const userStr = localStorage.getItem('user');
+    return userStr ? JSON.parse(userStr) : null;
   },
-
-  logout: async () => {
-    try {
-      await apiRequest('/auth/logout', 'POST');
-    } catch (e) {}
-    localStorage.removeItem('canteen_token');
-    localStorage.removeItem('canteen_user');
+  isLoggedIn() {
+    return !!this.getToken();
+  },
+  setUserSession(token, user) {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+  },
+  logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     window.location.href = '/login.html';
   },
-
-  requireAuth: (allowedRoles = []) => {
-    if (!Auth.isLoggedIn()) {
-      window.location.href = '/login.html';
-      return false;
+  redirectBasedOnRole(role) {
+    switch (role) {
+      case 'Admin':
+        window.location.href = '/admin/dashboard.html';
+        break;
+      case 'Kitchen Staff':
+        window.location.href = '/kitchen/dashboard.html';
+        break;
+      case 'Delivery Staff':
+        window.location.href = '/delivery/dashboard.html';
+        break;
+      case 'Canteen Operator':
+        window.location.href = '/operator/dashboard.html';
+        break;
+      case 'Branch Manager':
+        window.location.href = '/manager/dashboard.html';
+        break;
+      case 'Student':
+      case "Master's Student":
+      default:
+        window.location.href = '/menu.html';
+        break;
     }
-
-    const user = Auth.getUser();
-    if (allowedRoles.length > 0 && user && !allowedRoles.includes(user.role)) {
-      alert(`Access denied for role ${user ? user.role : 'Guest'}`);
-      window.location.href = '/index.html';
-      return false;
-    }
-    return true;
   }
 };
 

@@ -1,55 +1,58 @@
 const MenuItem = require('../models/MenuItem');
-const MenuCategory = require('../models/MenuCategory');
-const { Favorite } = require('../models/MiscModels');
-const { logAudit } = require('../utils/auditLogger');
 
-// GET /api/menu (Students & Guest view with backend filtering & pagination)
 exports.getMenuItems = async (req, res, next) => {
   try {
-    const {
-      search,
-      category,
-      isVegetarian,
-      isAvailable,
-      isTodaySpecial,
-      maxPrice,
-      maxPrepTime,
-      branchId,
-      sortBy
-    } = req.query;
+    const { category, isVegetarian, isTodaySpecial, search, branchId, sort, isAvailable } = req.query;
+    let filter = {};
 
-    const filter = { isActive: true };
+    // Allow staff/admin to view all items including unavailable if isAvailable === 'all'
+    if (isAvailable !== 'all') {
+      filter.isAvailable = true;
+    }
 
-    if (category) filter.category = category;
-    if (isVegetarian === 'true') filter.isVegetarian = true;
-    if (isVegetarian === 'false') filter.isVegetarian = false;
-    if (isAvailable === 'true') filter.isAvailable = true;
-    if (isTodaySpecial === 'true') filter.isTodaySpecial = true;
-    if (maxPrice) filter.price = { $lte: Number(maxPrice) };
-    if (maxPrepTime) filter.preparationTime = { $lte: Number(maxPrepTime) };
-    if (branchId) filter.branches = branchId;
+    if (category && category !== 'all' && category !== 'All Categories' && category !== 'All Items' && category !== 'All Food' && category.trim() !== '') {
+      filter.category = category;
+    }
 
-    if (search) {
+    if (isVegetarian !== undefined && isVegetarian !== '' && isVegetarian !== 'all') {
+      filter.isVegetarian = isVegetarian === 'true';
+    }
+
+    if (isTodaySpecial === 'true') {
+      filter.isTodaySpecial = true;
+    }
+
+    if (branchId && branchId !== 'all' && branchId !== 'All Branches' && branchId.trim() !== '') {
+      filter.branches = branchId;
+    }
+
+    if (search && search.trim() !== '') {
+      const searchRegex = new RegExp(search.trim(), 'i');
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { name: searchRegex },
+        { description: searchRegex },
+        { category: searchRegex },
+        { ingredients: searchRegex }
       ];
     }
 
-    let query = MenuItem.find(filter).populate('branches', 'name code');
+    let query = MenuItem.find(filter);
 
-    if (sortBy === 'price_asc') query = query.sort({ price: 1 });
-    else if (sortBy === 'price_desc') query = query.sort({ price: -1 });
-    else if (sortBy === 'popularity') query = query.sort({ popularity: -1 });
-    else query = query.sort({ createdAt: -1 });
+    if (sort === 'price-low') {
+      query = query.sort({ price: 1 });
+    } else if (sort === 'price-high') {
+      query = query.sort({ price: -1 });
+    } else if (sort === 'popularity') {
+      query = query.sort({ popularity: -1 });
+    } else {
+      query = query.sort({ createdAt: -1 });
+    }
 
-    const items = await query;
-    const categories = await MenuCategory.find({ isActive: true }).sort({ displayOrder: 1 });
+    const items = await query.exec();
 
     res.json({
       success: true,
       count: items.length,
-      categories,
       data: items
     });
   } catch (err) {
@@ -57,83 +60,145 @@ exports.getMenuItems = async (req, res, next) => {
   }
 };
 
-// GET /api/menu/:id
 exports.getMenuItemById = async (req, res, next) => {
   try {
-    const item = await MenuItem.findById(req.params.id).populate('branches');
-    if (!item) return res.status(404).json({ success: false, message: 'Menu item not found.' });
+    const item = await MenuItem.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Food item not found.' });
+    }
     res.json({ success: true, data: item });
   } catch (err) {
     next(err);
   }
 };
 
-// POST /api/menu (Admin / Operator / Manager)
 exports.createMenuItem = async (req, res, next) => {
   try {
-    const itemData = req.body;
-    const item = await MenuItem.create(itemData);
-    await logAudit({ user: req.user, action: 'CREATE_MENU_ITEM', target: 'MenuItem', targetId: item._id, req });
-    res.status(201).json({ success: true, data: item });
+    const {
+      name,
+      description,
+      price,
+      category,
+      isVegetarian,
+      image,
+      stockQuantity,
+      preparationTime,
+      isTodaySpecial,
+      ingredients,
+      allergyInfo,
+      dietaryTags
+    } = req.body;
+
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ success: false, message: 'Food dish name is required.' });
+    }
+
+    const parsedPrice = parseFloat(price);
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      return res.status(400).json({ success: false, message: 'Price must be a valid number greater than or equal to 0.' });
+    }
+
+    const validCategories = [
+      'Breakfast', 'Lunch', 'Snacks', 'Beverages',
+      'Meals', 'Fast Food', 'Healthy Food', 'Special Items'
+    ];
+    if (!category || !validCategories.includes(category)) {
+      return res.status(400).json({
+        success: false,
+        message: `Category must be one of: ${validCategories.join(', ')}`
+      });
+    }
+
+    const parsedStock = stockQuantity !== undefined ? parseInt(stockQuantity, 10) : 50;
+    if (isNaN(parsedStock) || parsedStock < 0) {
+      return res.status(400).json({ success: false, message: 'Stock quantity cannot be negative.' });
+    }
+
+    const parsedPrepTime = preparationTime !== undefined ? parseInt(preparationTime, 10) : 10;
+    if (isNaN(parsedPrepTime) || parsedPrepTime < 1) {
+      return res.status(400).json({ success: false, message: 'Preparation time must be at least 1 minute.' });
+    }
+
+    // Ensure real food image photograph is provided
+    let finalImage = (image || '').trim();
+    if (!finalImage || finalImage.endsWith('.svg')) {
+      finalImage = '/images/food/placeholder.jpg';
+    }
+
+    const newItem = await MenuItem.create({
+      name: name.trim(),
+      description: description ? description.trim() : '',
+      price: parsedPrice,
+      category,
+      isVegetarian: isVegetarian !== undefined ? Boolean(isVegetarian) : true,
+      image: finalImage,
+      stockQuantity: parsedStock,
+      preparationTime: parsedPrepTime,
+      isAvailable: true,
+      isTodaySpecial: Boolean(isTodaySpecial),
+      ingredients: Array.isArray(ingredients) ? ingredients : typeof ingredients === 'string' ? ingredients.split(',').map(s => s.trim()).filter(Boolean) : [],
+      allergyInfo: Array.isArray(allergyInfo) ? allergyInfo : typeof allergyInfo === 'string' ? allergyInfo.split(',').map(s => s.trim()).filter(Boolean) : [],
+      dietaryTags: Array.isArray(dietaryTags) ? dietaryTags : typeof dietaryTags === 'string' ? dietaryTags.split(',').map(s => s.trim()).filter(Boolean) : []
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Dish "${newItem.name}" added to menu catalog successfully.`,
+      data: newItem
+    });
   } catch (err) {
     next(err);
   }
 };
 
-// PUT /api/menu/:id
 exports.updateMenuItem = async (req, res, next) => {
   try {
-    const item = await MenuItem.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
+    const item = await MenuItem.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Food item not found.' });
+    }
+
+    const updates = { ...req.body };
+    if (updates.price !== undefined) {
+      updates.price = parseFloat(updates.price);
+      if (isNaN(updates.price) || updates.price < 0) {
+        return res.status(400).json({ success: false, message: 'Price cannot be negative.' });
+      }
+    }
+    if (updates.stockQuantity !== undefined) {
+      updates.stockQuantity = parseInt(updates.stockQuantity, 10);
+      if (isNaN(updates.stockQuantity) || updates.stockQuantity < 0) {
+        return res.status(400).json({ success: false, message: 'Stock cannot be negative.' });
+      }
+    }
+
+    const updated = await MenuItem.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
+
+    res.json({
+      success: true,
+      message: `Dish "${updated.name}" updated successfully.`,
+      data: updated
     });
-    if (!item) return res.status(404).json({ success: false, message: 'Menu item not found' });
-    await logAudit({ user: req.user, action: 'UPDATE_MENU_ITEM', target: 'MenuItem', targetId: item._id, req });
-    res.json({ success: true, data: item });
   } catch (err) {
     next(err);
   }
 };
 
-// DELETE /api/menu/:id
-exports.deleteMenuItem = async (req, res, next) => {
+exports.toggleAvailability = async (req, res, next) => {
   try {
     const item = await MenuItem.findById(req.params.id);
-    if (!item) return res.status(404).json({ success: false, message: 'Menu item not found' });
-    item.isActive = false;
-    await item.save();
-    await logAudit({ user: req.user, action: 'DISABLE_MENU_ITEM', target: 'MenuItem', targetId: item._id, req });
-    res.json({ success: true, message: 'Menu item disabled successfully' });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// POST /api/menu/favorites/:id (Student toggle favorite)
-exports.toggleFavorite = async (req, res, next) => {
-  try {
-    const studentId = req.user.id;
-    const menuItemId = req.params.id;
-
-    const existing = await Favorite.findOne({ student: studentId, menuItem: menuItemId });
-    if (existing) {
-      await Favorite.findByIdAndDelete(existing._id);
-      return res.json({ success: true, isFavorite: false, message: 'Removed from favorites' });
-    } else {
-      await Favorite.create({ student: studentId, menuItem: menuItemId });
-      return res.json({ success: true, isFavorite: true, message: 'Added to favorites' });
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Food item not found.' });
     }
-  } catch (err) {
-    next(err);
-  }
-};
 
-// GET /api/menu/favorites (Student favorites list)
-exports.getStudentFavorites = async (req, res, next) => {
-  try {
-    const favorites = await Favorite.find({ student: req.user.id }).populate('menuItem');
-    const items = favorites.map(f => f.menuItem).filter(item => item && item.isActive);
-    res.json({ success: true, data: items });
+    item.isAvailable = !item.isAvailable;
+    await item.save();
+
+    res.json({
+      success: true,
+      message: `"${item.name}" is now marked as ${item.isAvailable ? 'AVAILABLE' : 'SOLD OUT'}.`,
+      data: item
+    });
   } catch (err) {
     next(err);
   }

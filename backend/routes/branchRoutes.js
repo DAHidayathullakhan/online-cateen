@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const branchController = require('../controllers/branchController');
-const { protect } = require('../middleware/authMiddleware');
-const { authorize } = require('../middleware/roleMiddleware');
+const Branch = require('../models/Branch');
 
-router.get('/', branchController.getBranches);
-router.get('/:id', branchController.getBranchById);
-router.post('/', protect, authorize('Admin'), branchController.createBranch);
-router.patch('/:id/toggle-closure', protect, authorize('Admin', 'Branch Manager'), branchController.toggleEmergencyClosure);
+router.get('/', async (req, res, next) => {
+  try {
+    const branches = await Branch.find({});
+    res.json({ success: true, count: branches.length, data: branches });
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;
