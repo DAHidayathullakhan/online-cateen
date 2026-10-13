@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 250" width="100%" height="100%">
-  <rect width="400" height="250" fill="#fed7aa" rx="12" />
-  <circle cx="200" cy="115" r="70" fill="#ffffff" opacity="0.9" />
-  <text x="200" y="135" font-size="64" text-anchor="middle" dominant-baseline="central">🥐</text>
-  <rect x="20" y="190" width="360" height="42" fill="#ffffff" rx="8" opacity="0.95" />
-  <text x="200" y="216" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="16" font-weight="800" fill="#9a3412" text-anchor="middle">Flaky Veg Puff</text>
-</svg>
