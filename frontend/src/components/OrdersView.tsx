@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, Clock, QrCode, RefreshCw, CheckCircle2, AlertCircle, Banknote, CreditCard } from 'lucide-react';
+import { Package, Clock, RefreshCw, CheckCircle2, AlertCircle, Banknote, CreditCard } from 'lucide-react';
 import { Order } from '../types';
 
 interface OrdersViewProps {
@@ -127,8 +127,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onViewToken, onR
                       onClick={() => onViewToken(order)}
                       className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all"
                     >
-                      <QrCode className="w-4 h-4" />
-                      <span>Digital Token / QR</span>
+                      <Package className="w-4 h-4" />
+                      <span>View Token / Ticket</span>
                     </button>
 
                     <button

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { isSupabaseConfigured, authService } = require('../services/supabaseService');
 
 const protect = async (req, res, next) => {
   let token;
@@ -13,6 +14,16 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'smart_campus_canteen_jwt_secret_key_2026_super_secure');
+
+    if (isSupabaseConfigured()) {
+      const user = await authService.findUserById(decoded.id);
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'User belonging to this token no longer exists in Supabase.' });
+      }
+      req.user = user;
+      return next();
+    }
+
     req.user = await User.findById(decoded.id).select('-password');
     if (!req.user) {
       return res.status(401).json({ success: false, message: 'User belonging to this token no longer exists.' });

@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
+const { isSupabaseConfigured, checkSupabaseConnection, supabase } = require('./config/supabase');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -11,21 +12,45 @@ dotenv.config();
 
 const app = express();
 
-// Connect Database
-connectDB().then(async () => {
-  try {
-    const MenuItem = require('./models/MenuItem');
-    const count = await MenuItem.countDocuments();
-    if (count === 0) {
-      console.log('Database empty. Automatically seeding menu catalog & campus models...');
-      const seedData = require('../scripts/seed');
-      await seedData();
-      console.log('Auto-seed completed successfully!');
+// Database Initialization: Supabase (Primary) with MongoDB fallback
+if (isSupabaseConfigured()) {
+  console.log('[Database] Primary database configured: Supabase PostgreSQL');
+  checkSupabaseConnection().then(async (status) => {
+    if (status.connected) {
+      console.log('[Supabase] Database connected successfully!');
+      try {
+        // Auto-seed Supabase menu if empty
+        const { count, error } = await supabase.from('menu_items').select('*', { count: 'exact', head: true });
+        if (!error && count === 0) {
+          console.log('[Supabase] Database menu empty. Automatically seeding Pure Veg menu catalog...');
+          const seedSupabase = require('../scripts/seed_supabase');
+          await seedSupabase();
+          console.log('[Supabase] Auto-seed completed successfully!');
+        }
+      } catch (seedErr) {
+        console.warn('[Supabase] Auto-seed check notice:', seedErr.message);
+      }
+    } else {
+      console.warn('[Supabase Connection Warning]:', status.message);
     }
-  } catch (seedErr) {
-    console.warn('Auto-seed check/execution:', seedErr.message);
-  }
-});
+  });
+} else {
+  console.log('[Database] Supabase credentials not found in .env. Initializing local database fallback...');
+  connectDB().then(async () => {
+    try {
+      const MenuItem = require('./models/MenuItem');
+      const count = await MenuItem.countDocuments();
+      if (count === 0) {
+        console.log('Database empty. Automatically seeding menu catalog & campus models...');
+        const seedData = require('../scripts/seed');
+        await seedData();
+        console.log('Auto-seed completed successfully!');
+      }
+    } catch (seedErr) {
+      console.warn('Auto-seed check/execution:', seedErr.message);
+    }
+  });
+}
 
 // Security and Body Parsing Middleware
 const compression = require('compression');
@@ -46,8 +71,24 @@ app.use('/images', express.static(path.join(__dirname, '../public/images')));
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/public', express.static(path.join(__dirname, '../public')));
 
-// Real Health Check Endpoint
-app.get('/api/health', (req, res) => {
+// Real Health Check Endpoint (Verifies Express & Supabase / Database)
+app.get('/api/health', async (req, res) => {
+  if (isSupabaseConfigured()) {
+    const status = await checkSupabaseConnection();
+    return res.json({
+      success: true,
+      server: 'ok',
+      database: status.connected ? 'connected' : 'connecting',
+      provider: 'Supabase PostgreSQL',
+      supabase: {
+        configured: status.configured,
+        connected: status.connected,
+        message: status.message
+      },
+      timestamp: new Date()
+    });
+  }
+
   const dbState = mongoose.connection.readyState;
   const dbStatus = dbState === 1 ? 'connected' : dbState === 2 ? 'connecting' : 'disconnected';
   
@@ -55,6 +96,12 @@ app.get('/api/health', (req, res) => {
     success: dbState === 1,
     server: 'ok',
     database: dbStatus,
+    provider: 'Local MongoDB (Fallback)',
+    supabase: {
+      configured: false,
+      connected: false,
+      message: 'SUPABASE_URL and keys pending in .env'
+    },
     timestamp: new Date()
   });
 });
@@ -62,21 +109,15 @@ app.get('/api/health', (req, res) => {
 // Upload route for real dish photographs (Admin & Canteen Operator)
 const multer = require('multer');
 const uploadDir = path.join(__dirname, '../public/images/food/uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (dirErr) {
+  // Read-only filesystem in serverless environments (e.g., Vercel)
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const safeName = `dish_${Date.now()}_${Math.random().toString(36).substring(2, 7)}${ext}`;
-    cb(null, safeName);
-  }
-});
-
+const storage = multer.memoryStorage(); // Use memory storage for seamless Supabase Storage & local disk fallback
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
@@ -92,16 +133,58 @@ const upload = multer({
 });
 
 const { protect, authorize } = require('./middleware/authMiddleware');
-app.post('/api/upload', protect, authorize('Admin', 'Canteen Operator'), upload.single('image'), (req, res) => {
+app.post('/api/upload', protect, authorize('Admin', 'Canteen Operator'), upload.single('image'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'Please select an image file to upload.' });
   }
-  const imageUrl = `/images/food/uploads/${req.file.filename}`;
-  res.json({
-    success: true,
-    message: 'Food photograph uploaded successfully.',
-    imageUrl
-  });
+
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const safeName = `dish_${Date.now()}_${Math.random().toString(36).substring(2, 7)}${ext}`;
+
+  // If Supabase is configured, attempt upload to Supabase Storage 'food-images' bucket
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data: uploadResult, error: uploadErr } = await supabase.storage
+        .from('food-images')
+        .upload(`uploads/${safeName}`, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: true
+        });
+
+      if (!uploadErr && uploadResult) {
+        const { data: publicUrlData } = supabase.storage
+          .from('food-images')
+          .getPublicUrl(`uploads/${safeName}`);
+
+        if (publicUrlData && publicUrlData.publicUrl) {
+          return res.json({
+            success: true,
+            message: 'Food photograph uploaded to Supabase Storage successfully.',
+            imageUrl: publicUrlData.publicUrl
+          });
+        }
+      } else if (uploadErr) {
+        console.warn('[Supabase Storage Notice] Upload error, falling back to local storage:', uploadErr.message);
+      }
+    } catch (storageException) {
+      console.warn('[Supabase Storage Notice] Exception during upload, falling back to local storage:', storageException.message);
+    }
+  }
+
+  // Local disk storage fallback
+  try {
+    const diskFilePath = path.join(uploadDir, safeName);
+    fs.writeFileSync(diskFilePath, req.file.buffer);
+    const imageUrl = `/images/food/uploads/${safeName}`;
+
+    res.json({
+      success: true,
+      message: 'Food photograph saved successfully.',
+      imageUrl
+    });
+  } catch (fsErr) {
+    res.status(500).json({ success: false, message: 'Failed to write image file: ' + fsErr.message });
+  }
 });
 
 // API Routes Registration

@@ -9,6 +9,9 @@ router.post('/', protect, orderController.createOrder);
 // Student gets their own orders
 router.get('/my-orders', protect, orderController.getMyOrders);
 
+// Student or staff get single order details
+router.get('/:id', protect, orderController.getOrderById);
+
 // Staff and Admin get all orders
 router.get(
   '/',

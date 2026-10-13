@@ -1,6 +1,45 @@
 const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
 const QRCode = require('qrcode');
+const { isSupabaseConfigured, orderService } = require('../services/supabaseService');
+
+exports.getOrderById = async (req, res, next) => {
+  try {
+    const orderId = req.params.id;
+    if (isSupabaseConfigured()) {
+      const order = await orderService.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ success: false, message: 'Order not found.' });
+      }
+
+      // Check if student is requesting their own order, or staff/admin
+      const requesterId = req.user.id || req.user._id;
+      const staffRoles = ['Admin', 'Kitchen Staff', 'Canteen Operator', 'Delivery Staff', 'Branch Manager'];
+      const isStaff = staffRoles.includes(req.user.role);
+      if (!isStaff && String(order.userId || order.user) !== String(requesterId)) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view this order.' });
+      }
+
+      return res.json({ success: true, data: order });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+
+    const requesterId = req.user._id;
+    const staffRoles = ['Admin', 'Kitchen Staff', 'Canteen Operator', 'Delivery Staff', 'Branch Manager'];
+    const isStaff = staffRoles.includes(req.user.role);
+    if (!isStaff && String(order.user) !== String(requesterId)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this order.' });
+    }
+
+    res.json({ success: true, data: order });
+  } catch (err) {
+    next(err);
+  }
+};
 
 exports.createOrder = async (req, res, next) => {
   try {
@@ -31,7 +70,28 @@ exports.createOrder = async (req, res, next) => {
       });
     }
 
-    // Verify each item from MongoDB and calculate real subtotal
+    if (isSupabaseConfigured()) {
+      const order = await orderService.createOrder({
+        user: req.user,
+        items,
+        orderType,
+        pickupWindow,
+        deliveryLocation,
+        roomNumber,
+        branch,
+        paymentMethod
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: paymentMethod === 'CASH'
+          ? 'Order placed with Cash payment pending at canteen counter.'
+          : 'Order placed and paid online successfully.',
+        data: order
+      });
+    }
+
+    // Fallback: MongoDB
     const verifiedOrderItems = [];
     let calculatedSubtotal = 0;
 
@@ -134,6 +194,15 @@ exports.createOrder = async (req, res, next) => {
 
 exports.getMyOrders = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const orders = await orderService.getMyOrders(req.user.id || req.user._id);
+      return res.json({
+        success: true,
+        count: orders.length,
+        data: orders
+      });
+    }
+
     // Only return the authenticated student's own orders
     const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
     res.json({
@@ -148,6 +217,18 @@ exports.getMyOrders = async (req, res, next) => {
 
 exports.getAllOrders = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const orders = await orderService.getAllOrders({
+        branch: req.query.branch,
+        status: req.query.status
+      });
+      return res.json({
+        success: true,
+        count: orders.length,
+        data: orders
+      });
+    }
+
     const { branch, status } = req.query;
     let query = {};
     if (branch && branch !== 'All Branches') {
@@ -180,6 +261,15 @@ exports.updateOrderStatus = async (req, res, next) => {
       });
     }
 
+    if (isSupabaseConfigured()) {
+      const order = await orderService.updateOrderStatus(req.params.id, status);
+      return res.json({
+        success: true,
+        message: `Order status updated to ${status}`,
+        data: order
+      });
+    }
+
     const order = await Order.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found.' });
@@ -205,6 +295,15 @@ exports.updateOrderStatus = async (req, res, next) => {
 
 exports.markCashReceived = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const order = await orderService.markCashReceived(req.params.id, req.user.id || req.user._id);
+      return res.json({
+        success: true,
+        message: `Cash payment of ₹${order.totalAmount} marked as received by ${req.user.name}.`,
+        data: order
+      });
+    }
+
     const order = await Order.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found.' });

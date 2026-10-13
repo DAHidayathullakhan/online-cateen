@@ -148,31 +148,36 @@ async function submitCheckout() {
 
   const specialInstructions = document.getElementById('special-instructions-input')?.value || '';
 
-  // Show Payment Modal
-  document.getElementById('payment-modal').style.display = 'flex';
+  const selectedPaymentMethod = document.querySelector('input[name="checkout-payment-method"]:checked')?.value || 'CASH';
 
-  window.confirmPayment = async () => {
-    try {
-      const res = await apiRequest('/orders', 'POST', {
-        branchId,
-        orderType,
-        pickupSlotId,
-        deliveryLocation,
-        items: cartItems,
-        couponCode: appliedCouponCode,
-        specialInstructions,
-        paymentMethod: 'Campus Wallet / Mock Pay'
-      });
-
-      Cart.clearCart();
-      showToast('Order placed successfully!', 'success');
-      setTimeout(() => {
-        window.location.href = `/token.html?id=${res.orderId}`;
-      }, 1000);
-    } catch (err) {
-      document.getElementById('payment-modal').style.display = 'none';
-    }
+  const payload = {
+    branchId,
+    orderType,
+    pickupWindow: orderType === 'Pickup' ? pickupSlotId : undefined,
+    deliveryLocation: orderType === 'Room Delivery' ? deliveryLocation.building : undefined,
+    roomNumber: orderType === 'Room Delivery' ? `${deliveryLocation.floor}, ${deliveryLocation.roomNumber}` : undefined,
+    items: cartItems.map(item => ({
+      id: item._id || item.id,
+      quantity: item.quantity
+    })),
+    paymentMethod: selectedPaymentMethod,
+    specialInstructions
   };
+
+  try {
+    const res = await apiRequest('/orders', 'POST', payload);
+
+    Cart.clearCart();
+    showToast(res.message || 'Order placed successfully!', 'success');
+    
+    const createdOrderId = res.data ? (res.data._id || res.data.id) : res.orderId;
+    setTimeout(() => {
+      window.location.href = `/token.html?id=${createdOrderId}`;
+    }, 1200);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || 'Failed to place order. Please try again.', 'error');
+  }
 }
 
 window.applyCoupon = applyCoupon;

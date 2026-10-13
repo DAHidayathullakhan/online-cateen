@@ -2,6 +2,7 @@ const User = require('../models/User');
 const StudentProfile = require('../models/StudentProfile');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { isSupabaseConfigured, authService } = require('../services/supabaseService');
 
 const generateToken = (id) => {
   return jwt.sign(
@@ -19,13 +20,48 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide name, email, and password.' });
     }
 
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    if (isSupabaseConfigured()) {
+      const existingUser = await authService.findUserByLogin(email);
+      if (existingUser) {
+        return res.status(400).json({ success: false, message: 'User with this email already exists.' });
+      }
+
+      const user = await authService.createUser({
+        name,
+        email,
+        passwordHash,
+        phone,
+        role: role || 'Student',
+        studentId,
+        degreeLevel,
+        programType,
+        course,
+        department
+      });
+
+      const token = generateToken(user.id || user._id);
+      return res.status(201).json({
+        success: true,
+        token,
+        data: {
+          id: user.id || user._id,
+          _id: user.id || user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          studentId: user.studentId
+        }
+      });
+    }
+
+    // Fallback: MongoDB
     const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'User with this email already exists.' });
     }
-
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
 
     const user = await User.create({
       name: name.trim(),
@@ -54,6 +90,7 @@ exports.register = async (req, res, next) => {
       token,
       data: {
         id: user._id,
+        _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -74,7 +111,34 @@ exports.login = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide email or Student ID and password.' });
     }
 
-    // Support dual login by email OR Student ID (case-insensitive)
+    if (isSupabaseConfigured()) {
+      const user = await authService.findUserByLogin(loginKey);
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'Invalid credentials. User not found.' });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'Invalid credentials. Password incorrect.' });
+      }
+
+      const token = generateToken(user.id || user._id);
+      return res.json({
+        success: true,
+        token,
+        data: {
+          id: user.id || user._id,
+          _id: user.id || user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          studentId: user.studentId,
+          branch: user.branch
+        }
+      });
+    }
+
+    // Fallback: MongoDB
     const user = await User.findOne({
       $or: [
         { email: loginKey.toLowerCase() },
@@ -98,6 +162,7 @@ exports.login = async (req, res, next) => {
       token,
       data: {
         id: user._id,
+        _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -112,6 +177,17 @@ exports.login = async (req, res, next) => {
 
 exports.getMe = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const user = await authService.findUserById(req.user.id || req.user._id);
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+      }
+      return res.json({
+        success: true,
+        data: user
+      });
+    }
+
     const user = await User.findById(req.user.id).select('-password');
     let profile = null;
     if (user.role === 'Student' || user.role === "Master's Student") {

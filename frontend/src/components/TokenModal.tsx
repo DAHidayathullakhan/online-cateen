@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, CheckCircle, QrCode, Clock, MapPin, Receipt } from 'lucide-react';
+import { X, CheckCircle, Clock, MapPin, Receipt, Banknote, CreditCard, AlertCircle } from 'lucide-react';
 import { Order } from '../types';
 
 interface TokenModalProps {
@@ -9,6 +9,9 @@ interface TokenModalProps {
 
 export const TokenModal: React.FC<TokenModalProps> = ({ order, onClose }) => {
   if (!order) return null;
+
+  const isCash = order.paymentMethod === 'CASH';
+  const isPaid = order.paymentStatus === 'PAID';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
@@ -31,11 +34,13 @@ export const TokenModal: React.FC<TokenModalProps> = ({ order, onClose }) => {
             Order Confirmed & Placed
           </span>
           <h2 className="text-2xl font-black mt-1">Smart Digital Food Token</h2>
-          <p className="text-xs text-blue-100/90 mt-1">Show this token or QR at the canteen counter</p>
+          <p className="text-xs text-blue-100/90 mt-1">
+            Show this token number or Order ID at the canteen counter
+          </p>
         </div>
 
         {/* Token Pass Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-4">
           {/* Main Token Display Box */}
           <div className="p-4 rounded-2xl bg-slate-50 border-2 border-dashed border-blue-200 text-center relative">
             <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
@@ -47,15 +52,34 @@ export const TokenModal: React.FC<TokenModalProps> = ({ order, onClose }) => {
             <span className="text-xs font-bold text-slate-500">
               Order #{order.orderNumber} • {order.branch}
             </span>
-
-            {/* QR Code Simulation Block */}
-            <div className="mt-4 p-3 bg-white rounded-xl inline-block border border-slate-200 shadow-sm">
-              <QrCode className="w-32 h-32 text-slate-900 mx-auto" />
-              <span className="text-[10px] font-bold text-slate-400 mt-1 block">
-                SCAN TO VERIFY & COMPLETE
-              </span>
-            </div>
           </div>
+
+          {/* Payment Status & Instructions Banner */}
+          {isCash && !isPaid ? (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5">
+              <Banknote className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-black uppercase tracking-wider text-amber-700">
+                  Pay at the Canteen
+                </div>
+                <div className="text-xs font-semibold mt-0.5">
+                  Payment is <strong>PENDING (Cash)</strong>. Please pay <strong className="text-amber-800">₹{order.totalAmount}</strong> at the canteen counter when collecting your food.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center gap-2.5">
+              <CreditCard className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <div>
+                <div className="text-xs font-black uppercase tracking-wider text-emerald-700">
+                  Payment Verified (Online)
+                </div>
+                <div className="text-xs font-semibold">
+                  Amount ₹{order.totalAmount} has been paid successfully.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Details Grid */}
           <div className="grid grid-cols-2 gap-3 text-xs">

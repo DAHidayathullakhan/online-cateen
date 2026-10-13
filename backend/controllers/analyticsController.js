@@ -1,8 +1,19 @@
 const Order = require('../models/Order');
 const MenuItem = require('../models/MenuItem');
+const { isSupabaseConfigured, analyticsService } = require('../services/supabaseService');
 
 exports.getSummary = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const summary = await analyticsService.getSummary();
+      if (summary) {
+        return res.json({
+          success: true,
+          data: summary
+        });
+      }
+    }
+
     const orders = await Order.find();
 
     const now = new Date();
@@ -102,49 +113,13 @@ exports.getSummary = async (req, res, next) => {
           Completed: completedOrdersCount,
           Cancelled: cancelledOrdersCount
         },
-        paymentAnalytics: {
-          totalSales: totalRevenue,
-          todayRevenue,
-          yesterdayRevenue,
-          cashSales,
-          onlineSales,
-          cashPercentage,
-          onlinePercentage,
-          pendingPayments: pendingPaymentsCount,
-          failedPayments: failedPaymentsCount,
-          averageOrderValue: aov
+        crowdMetrics: {
+          activeQueueLength: activeQueue,
+          crowdLevel,
+          avgWaitMinutes: activeQueue * 4 + 5
         },
-        salesAnalytics: {
-          totalOrders: totalOrdersCount,
-          completedOrders: completedOrdersCount,
-          preparingOrders: preparingOrdersCount,
-          readyOrders: readyOrdersCount,
-          cancelledOrders: cancelledOrdersCount,
-          todayOrdersCount: todayOrders.length,
-          topSellingFood: sortedDishes.slice(0, 5),
-          peakOrderingTime: '12:30 PM – 01:15 PM'
-        },
-        financialEstimate: {
-          totalRevenue,
-          estimatedIngredientCost: estimatedCost,
-          estimatedGrossMargin,
-          grossMarginPercentage: totalRevenue > 0 ? Math.round((estimatedGrossMargin / totalRevenue) * 100) : 55,
-          disclaimer: 'ESTIMATE: Based on standard 45% ingredient procurement benchmark.'
-        },
-        dailySummary: {
-          ordersToday: todayOrders.length,
-          salesToday: todayRevenue,
-          orders: totalOrdersCount,
-          completed: completedOrdersCount,
-          pending: pendingPaymentsCount,
-          cancelled: cancelledOrdersCount,
-          revenue: totalRevenue,
-          cash: cashSales,
-          online: onlineSales,
-          topFood,
-          peakTime: '12:30 PM – 01:15 PM',
-          crowd: crowdLevel
-        }
+        topSellingItem: topFood,
+        topDishes: sortedDishes.slice(0, 5)
       }
     });
   } catch (err) {

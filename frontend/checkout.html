@@ -105,8 +105,29 @@
           </div>
         </div>
 
-        <button onclick="submitCheckout()" class="btn btn-primary btn-block" style="margin-top: 1.5rem; padding: 0.9rem; font-size: 1.05rem; font-weight: 700; border-radius: 10px;">
-          Place Order & Pay 💳
+        <!-- Payment Method Selection -->
+        <div style="margin: 1.25rem 0; padding: 1rem; background: var(--bg-main); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+          <label style="font-weight: 700; color: var(--text-dark); display: block; margin-bottom: 0.75rem; font-size: 0.9rem;">Select Payment Method:</label>
+          <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+            <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.75rem; background: white; border: 1px solid var(--border-color); border-radius: 8px;">
+              <input type="radio" name="checkout-payment-method" value="CASH" checked style="margin-top: 0.2rem;">
+              <div>
+                <strong style="color: var(--text-dark); display: block; font-size: 0.9rem;">💵 Cash Payment (Pay at Canteen)</strong>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Pay directly at the canteen counter when collecting your food. No online charge.</span>
+              </div>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.75rem; background: white; border: 1px solid var(--border-color); border-radius: 8px;">
+              <input type="radio" name="checkout-payment-method" value="ONLINE" style="margin-top: 0.2rem;">
+              <div>
+                <strong style="color: var(--text-dark); display: block; font-size: 0.9rem;">💳 Online Payment (UPI / Cards)</strong>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Secure server-side payment verification. Only available when payment gateway is active.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <button onclick="submitCheckout()" class="btn btn-primary btn-block" style="margin-top: 1rem; padding: 0.9rem; font-size: 1.05rem; font-weight: 700; border-radius: 10px;">
+          Confirm & Place Order 🚀
         </button>
       </div>
     </div>

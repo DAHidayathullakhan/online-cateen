@@ -1,7 +1,17 @@
 const MenuItem = require('../models/MenuItem');
+const { isSupabaseConfigured, menuService } = require('../services/supabaseService');
 
 exports.getMenuItems = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const items = await menuService.getMenuItems(req.query);
+      return res.json({
+        success: true,
+        count: items.length,
+        data: items
+      });
+    }
+
     const { category, isVegetarian, isTodaySpecial, search, branchId, sort, isAvailable } = req.query;
     let filter = {};
 
@@ -62,6 +72,14 @@ exports.getMenuItems = async (req, res, next) => {
 
 exports.getMenuItemById = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const item = await menuService.getMenuItemById(req.params.id);
+      if (!item) {
+        return res.status(404).json({ success: false, message: 'Food item not found.' });
+      }
+      return res.json({ success: true, data: item });
+    }
+
     const item = await MenuItem.findById(req.params.id);
     if (!item) {
       return res.status(404).json({ success: false, message: 'Food item not found.' });
@@ -91,6 +109,14 @@ exports.createMenuItem = async (req, res, next) => {
 
     if (!name || name.trim() === '') {
       return res.status(400).json({ success: false, message: 'Food dish name is required.' });
+    }
+
+    // STRICT 100% PURE VEG ENFORCEMENT: Reject non-vegetarian dishes
+    if (isVegetarian === false || isVegetarian === 'false') {
+      return res.status(400).json({
+        success: false,
+        message: 'STRICT PURE VEG POLICY: Non-vegetarian dishes are strictly prohibited in Smart Campus Canteen.'
+      });
     }
 
     const parsedPrice = parseFloat(price);
@@ -125,12 +151,35 @@ exports.createMenuItem = async (req, res, next) => {
       finalImage = '/images/food/placeholder.jpg';
     }
 
+    if (isSupabaseConfigured()) {
+      const newItem = await menuService.createMenuItem({
+        name,
+        description,
+        price: parsedPrice,
+        category,
+        isVegetarian: true,
+        image: finalImage,
+        stockQuantity: parsedStock,
+        preparationTime: parsedPrepTime,
+        isTodaySpecial,
+        ingredients,
+        allergyInfo,
+        dietaryTags
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: `Dish "${newItem.name}" added to menu catalog successfully.`,
+        data: newItem
+      });
+    }
+
     const newItem = await MenuItem.create({
       name: name.trim(),
       description: description ? description.trim() : '',
       price: parsedPrice,
       category,
-      isVegetarian: isVegetarian !== undefined ? Boolean(isVegetarian) : true,
+      isVegetarian: true,
       image: finalImage,
       stockQuantity: parsedStock,
       preparationTime: parsedPrepTime,
@@ -153,6 +202,22 @@ exports.createMenuItem = async (req, res, next) => {
 
 exports.updateMenuItem = async (req, res, next) => {
   try {
+    if (req.body.isVegetarian === false || req.body.is_vegetarian === false) {
+      return res.status(400).json({
+        success: false,
+        message: 'STRICT PURE VEG POLICY: Non-vegetarian dishes are prohibited.'
+      });
+    }
+
+    if (isSupabaseConfigured()) {
+      const updated = await menuService.updateMenuItem(req.params.id, req.body);
+      return res.json({
+        success: true,
+        message: `Dish "${updated.name}" updated successfully.`,
+        data: updated
+      });
+    }
+
     const item = await MenuItem.findById(req.params.id);
     if (!item) {
       return res.status(404).json({ success: false, message: 'Food item not found.' });
@@ -186,6 +251,15 @@ exports.updateMenuItem = async (req, res, next) => {
 
 exports.toggleAvailability = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const updated = await menuService.toggleAvailability(req.params.id);
+      return res.json({
+        success: true,
+        message: `"${updated.name}" is now marked as ${updated.isAvailable ? 'AVAILABLE' : 'SOLD OUT'}.`,
+        data: updated
+      });
+    }
+
     const item = await MenuItem.findById(req.params.id);
     if (!item) {
       return res.status(404).json({ success: false, message: 'Food item not found.' });

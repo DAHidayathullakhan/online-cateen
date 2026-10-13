@@ -1,4 +1,5 @@
 const Order = require('../models/Order');
+const { isSupabaseConfigured, orderService } = require('../services/supabaseService');
 
 const PICKUP_SLOTS = [
   '11:45 AM – 12:00 PM',
@@ -14,12 +15,17 @@ const PICKUP_SLOTS = [
 exports.getCrowdStatus = async (req, res, next) => {
   try {
     const branch = req.query.branch || 'Main Canteen';
+    let activeOrders = [];
 
-    // Query active orders currently in progress
-    const activeOrders = await Order.find({
-      branch,
-      status: { $in: ['Confirmed', 'Preparing', 'Ready'] }
-    });
+    if (isSupabaseConfigured()) {
+      const allOrders = await orderService.getAllOrders({ branch });
+      activeOrders = allOrders.filter(o => ['Confirmed', 'Preparing', 'Ready'].includes(o.status));
+    } else {
+      activeOrders = await Order.find({
+        branch,
+        status: { $in: ['Confirmed', 'Preparing', 'Ready'] }
+      });
+    }
 
     const waitingCount = activeOrders.filter(o => o.status === 'Confirmed').length;
     const preparingCount = activeOrders.filter(o => o.status === 'Preparing').length;
@@ -69,8 +75,15 @@ exports.getCrowdStatus = async (req, res, next) => {
     // If user provided their orderId or token, calculate their exact queue position
     let userQueueInfo = null;
     if (req.query.orderId || req.query.tokenNumber) {
-      const targetQuery = req.query.orderId ? { _id: req.query.orderId } : { tokenNumber: req.query.tokenNumber };
-      const myOrder = await Order.findOne(targetQuery);
+      let myOrder = null;
+      if (isSupabaseConfigured()) {
+        const all = await orderService.getAllOrders();
+        myOrder = all.find(o => o.id === req.query.orderId || o.orderNumber === req.query.orderId || o.tokenNumber === req.query.tokenNumber);
+      } else {
+        const targetQuery = req.query.orderId ? { _id: req.query.orderId } : { tokenNumber: req.query.tokenNumber };
+        myOrder = await Order.findOne(targetQuery);
+      }
+
       if (myOrder && ['Confirmed', 'Preparing'].includes(myOrder.status)) {
         const ordersAhead = activeOrders.filter(o =>
           new Date(o.createdAt) < new Date(myOrder.createdAt) &&

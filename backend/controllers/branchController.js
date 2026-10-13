@@ -1,12 +1,16 @@
 const Branch = require('../models/Branch');
 const PickupWindow = require('../models/PickupWindow');
-const NotificationService = require('../services/notificationService');
-const User = require('../models/User');
+const { isSupabaseConfigured, branchService } = require('../services/supabaseService');
 const { logAudit } = require('../utils/auditLogger');
 
 // GET /api/branches
 exports.getBranches = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const branches = await branchService.getBranches();
+      return res.json({ success: true, data: branches });
+    }
+
     const branches = await Branch.find({ isActive: true });
     res.json({ success: true, data: branches });
   } catch (err) {
@@ -17,6 +21,12 @@ exports.getBranches = async (req, res, next) => {
 // GET /api/branches/:id
 exports.getBranchById = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const branch = await branchService.getBranchById(req.params.id);
+      if (!branch) return res.status(404).json({ success: false, message: 'Branch not found' });
+      return res.json({ success: true, data: branch });
+    }
+
     const branch = await Branch.findById(req.params.id);
     if (!branch) return res.status(404).json({ success: false, message: 'Branch not found' });
     res.json({ success: true, data: branch });

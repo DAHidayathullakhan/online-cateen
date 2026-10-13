@@ -1,9 +1,19 @@
 const CashRegister = require('../models/CashRegister');
 const Order = require('../models/Order');
+const { isSupabaseConfigured, cashRegisterService } = require('../services/supabaseService');
 
 exports.getCurrentRegister = async (req, res, next) => {
   try {
     const branch = req.query.branch || 'Main Canteen';
+
+    if (isSupabaseConfigured()) {
+      const register = await cashRegisterService.getCurrentRegister(branch, req.user);
+      return res.json({
+        success: true,
+        data: register
+      });
+    }
+
     let register = await CashRegister.findOne({ status: 'OPEN', branch }).sort({ createdAt: -1 });
 
     if (!register) {
@@ -45,6 +55,15 @@ exports.openRegister = async (req, res, next) => {
     const { branch, openingBalance, notes } = req.body;
     const branchName = branch || 'Main Canteen';
 
+    if (isSupabaseConfigured()) {
+      const reg = await cashRegisterService.openRegister({ branch, openingBalance, notes }, req.user);
+      return res.status(200).json({
+        success: true,
+        message: `Cash register opened for ${branchName} with opening balance ₹${openingBalance || 0}`,
+        data: reg
+      });
+    }
+
     // Auto-archive any previous open register for this branch
     await CashRegister.updateMany(
       { status: 'OPEN', branch: branchName },
@@ -85,11 +104,6 @@ exports.addTransaction = async (req, res, next) => {
     const { type, amount, reason, branch } = req.body;
     const branchName = branch || 'Main Canteen';
 
-    const register = await CashRegister.findOne({ status: 'OPEN', branch: branchName });
-    if (!register) {
-      return res.status(404).json({ success: false, message: 'No active cash register found to record transaction.' });
-    }
-
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
       return res.status(400).json({ success: false, message: 'Transaction amount must be greater than 0.' });
@@ -97,6 +111,20 @@ exports.addTransaction = async (req, res, next) => {
 
     if (!['EXPENSE', 'REFUND', 'FLOAT'].includes(type)) {
       return res.status(400).json({ success: false, message: 'Transaction type must be EXPENSE, REFUND, or FLOAT.' });
+    }
+
+    if (isSupabaseConfigured()) {
+      const reg = await cashRegisterService.addTransaction({ type, amount, reason, branch }, req.user);
+      return res.json({
+        success: true,
+        message: `Cash ${type.toLowerCase()} of ₹${numAmount} recorded successfully.`,
+        data: reg
+      });
+    }
+
+    const register = await CashRegister.findOne({ status: 'OPEN', branch: branchName });
+    if (!register) {
+      return res.status(404).json({ success: false, message: 'No active cash register found to record transaction.' });
     }
 
     if (type === 'EXPENSE') {
@@ -134,15 +162,24 @@ exports.closeRegister = async (req, res, next) => {
     const { actualClosingCash, closingBalance, notes, branch } = req.body;
     const branchName = branch || 'Main Canteen';
 
-    const register = await CashRegister.findOne({ status: 'OPEN', branch: branchName });
-    if (!register) {
-      return res.status(404).json({ success: false, message: 'No active cash register session is currently open.' });
-    }
-
     const cashValue = actualClosingCash !== undefined ? actualClosingCash : closingBalance;
     const actual = parseFloat(cashValue);
     if (isNaN(actual) || actual < 0) {
       return res.status(400).json({ success: false, message: 'Please enter a valid actual closing cash count.' });
+    }
+
+    if (isSupabaseConfigured()) {
+      const reg = await cashRegisterService.closeRegister({ actualClosingCash, closingBalance, notes, branch }, req.user);
+      return res.json({
+        success: true,
+        message: `Cash register closed. Expected: ₹${reg.expectedClosingCash}, Actual: ₹${actual}, Variance: ${reg.variance >= 0 ? '+' : ''}₹${reg.variance}`,
+        data: reg
+      });
+    }
+
+    const register = await CashRegister.findOne({ status: 'OPEN', branch: branchName });
+    if (!register) {
+      return res.status(404).json({ success: false, message: 'No active cash register session is currently open.' });
     }
 
     // Refresh real-time order cash sales
@@ -179,6 +216,15 @@ exports.closeRegister = async (req, res, next) => {
 
 exports.getHistory = async (req, res, next) => {
   try {
+    if (isSupabaseConfigured()) {
+      const history = await cashRegisterService.getHistory();
+      return res.json({
+        success: true,
+        count: history.length,
+        data: history
+      });
+    }
+
     const history = await CashRegister.find().sort({ createdAt: -1 }).limit(20);
     res.json({
       success: true,
