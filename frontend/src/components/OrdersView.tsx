@@ -6,9 +6,10 @@ interface OrdersViewProps {
   orders: Order[];
   onViewToken: (order: Order) => void;
   onReorder: (order: Order) => void;
+  onTrackOrder?: (order: Order) => void;
 }
 
-export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onViewToken, onReorder }) => {
+export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onViewToken, onReorder, onTrackOrder }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -21,7 +22,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onViewToken, onR
             <h1 className="text-xl font-black text-slate-900">My Campus Orders & Tokens</h1>
           </div>
           <p className="text-xs font-semibold text-slate-500 mt-1">
-            Real-time status updates from MongoDB, payment receipts, and digital QR tokens
+            Real-time status updates from Supabase, payment receipts, digital tokens, and live kitchen tracking
           </p>
         </div>
         <span className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 font-extrabold text-xs">
@@ -43,6 +44,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onViewToken, onR
           orders.map((order) => {
             const isCashPending = order.paymentMethod === 'CASH' && order.paymentStatus === 'PENDING';
             const isPaid = order.paymentStatus === 'PAID';
+            const isActive = ['Received', 'Confirmed', 'Preparing', 'Ready', 'Ready for Pickup'].includes(order.status);
 
             return (
               <div
@@ -63,8 +65,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onViewToken, onR
                     <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
                       order.status === 'Completed'
                         ? 'bg-slate-100 text-slate-800'
-                        : order.status === 'Ready'
-                        ? 'bg-emerald-100 text-emerald-800'
+                        : order.status === 'Ready' || order.status === 'Ready for Pickup'
+                        ? 'bg-emerald-100 text-emerald-800 animate-pulse'
                         : order.status === 'Preparing'
                         ? 'bg-amber-100 text-amber-800'
                         : 'bg-blue-100 text-blue-800'
@@ -123,12 +125,26 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onViewToken, onR
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {onTrackOrder && (
+                      <button
+                        onClick={() => onTrackOrder(order)}
+                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-sm active:scale-95 transition-all ${
+                          isActive
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {isActive && <span className="w-2 h-2 rounded-full bg-white animate-ping" />}
+                        <span>Live Track</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => onViewToken(order)}
                       className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all"
                     >
                       <Package className="w-4 h-4" />
-                      <span>View Token / Ticket</span>
+                      <span>Token</span>
                     </button>
 
                     <button
@@ -148,3 +164,4 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onViewToken, onR
     </div>
   );
 };
+

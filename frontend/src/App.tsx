@@ -10,9 +10,13 @@ import { OperatorDashboard } from './components/OperatorDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { OrdersView } from './components/OrdersView';
 import { AuthModal } from './components/AuthModal';
+import { CollegeManagementDashboard } from './components/CollegeManagementDashboard';
+import { CollegeOnboardingModal } from './components/CollegeOnboardingModal';
+import { LiveOrderTracking } from './components/LiveOrderTracking';
+import { CanteenStaffOrderDesk } from './components/CanteenStaffOrderDesk';
 import { mockFoods } from './data/mockFoods';
-import { FoodItem, CartItem, Order, User } from './types';
-import { Search, SlidersHorizontal, Sparkles, AlertCircle, RefreshCw, ChefHat, Truck, Store, Shield, User as UserIcon, Clock, MapPin, Zap } from 'lucide-react';
+import { FoodItem, CartItem, Order, User, College } from './types';
+import { Search, SlidersHorizontal, Sparkles, AlertCircle, RefreshCw, ChefHat, Truck, Store, Shield, User as UserIcon, Clock, MapPin, Zap, Building2 } from 'lucide-react';
 
 const CATEGORIES = [
   'All Items',
@@ -83,6 +87,7 @@ const INITIAL_ORDERS: Order[] = [
 export const App: React.FC = () => {
   // Navigation & Role states
   const [activeTab, setActiveTab] = useState<string>('menu');
+  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
 
   // Persistent User Session
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -119,6 +124,11 @@ export const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [selectedOrderForToken, setSelectedOrderForToken] = useState<Order | null>(null);
+
+  // Multi-College Platform state
+  const [colleges, setColleges] = useState<College[]>([]);
+  const [selectedCollegeId, setSelectedCollegeId] = useState<string>('');
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
 
   // Notification Toast state
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -161,9 +171,30 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // 2. Fetch dishes from backend
+  // 2. Multi-College Platform initialization
+  const fetchColleges = () => {
+    fetch('/api/colleges')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setColleges(data.data);
+          setSelectedCollegeId(prev => prev || data.data[0].id);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchColleges();
+  }, []);
+
+  // 3. Fetch dishes from backend (with College Isolation support)
   const fetchMenu = () => {
-    fetch('/api/menu?isAvailable=all')
+    const url = selectedCollegeId
+      ? `/api/colleges/${selectedCollegeId}/menu`
+      : '/api/menu?isAvailable=all';
+
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         const rawItems = data?.data || data?.items;
@@ -181,7 +212,10 @@ export const App: React.FC = () => {
             stock: m.stockQuantity !== undefined ? m.stockQuantity : (m.stock || 50),
             preparationTime: m.preparationTime !== undefined ? m.preparationTime : (m.preparationTimeMinutes || 10),
             isPopular: m.popularity > 80 || m.isPopular,
-            isSpecial: m.isTodaySpecial || m.isSpecial
+            isSpecial: m.isTodaySpecial || m.isSpecial,
+            dailyLimit: m.dailyLimit,
+            discountPercentage: m.discountPercentage,
+            collegeId: m.collegeId
           }));
           setFoods(mapped);
         }
@@ -191,6 +225,9 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     fetchMenu();
+  }, [selectedCollegeId]);
+
+  useEffect(() => {
 
     const fetchCrowd = () => {
       fetch('/api/crowd/status')
@@ -314,8 +351,10 @@ export const App: React.FC = () => {
     setCartItems([]);
     setIsCartOpen(false);
     setSelectedOrderForToken(newOrder);
+    setTrackingOrderId(newOrder.id);
+    setActiveTab('tracking');
     fetchMenu();
-    showToast(`Order Placed! Token #${newOrder.tokenNumber}`, 'success');
+    showToast(`Order Placed! Live Tracking Token #${newOrder.tokenNumber}`, 'success');
   };
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
@@ -471,6 +510,9 @@ export const App: React.FC = () => {
         openCart={() => setIsCartOpen(true)}
         currentUser={currentUser}
         openAuth={() => setIsAuthOpen(true)}
+        colleges={colleges}
+        selectedCollegeId={selectedCollegeId}
+        onSelectCollege={(id) => setSelectedCollegeId(id)}
         onLogout={() => {
           setCurrentUser(null);
           try {
@@ -528,6 +570,17 @@ export const App: React.FC = () => {
               }`}
             >
               <Shield className="w-3.5 h-3.5" /> Admin Portal
+            </button>
+            <button
+              onClick={() => {
+                handleQuickRoleSwitch('College Administrator', 'Prof. Ronald (College Admin)');
+                setActiveTab('college-management');
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                currentUser?.role === 'College Administrator' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-300'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-indigo-400" /> College Admin
             </button>
           </div>
         </div>
@@ -739,6 +792,28 @@ export const App: React.FC = () => {
             orders={orders}
             onViewToken={order => setSelectedOrderForToken(order)}
             onReorder={handleReorder}
+            onTrackOrder={order => {
+              setTrackingOrderId(order.id);
+              setActiveTab('tracking');
+            }}
+          />
+        )}
+
+        {/* Live Order Tracking View */}
+        {activeTab === 'tracking' && (
+          <LiveOrderTracking
+            orderId={trackingOrderId || (orders.length > 0 ? orders[0].id : '')}
+            onBackToMenu={() => setActiveTab('menu')}
+            onViewOrders={() => setActiveTab('orders')}
+          />
+        )}
+
+        {/* Canteen Staff Live Order Desk */}
+        {activeTab === 'staff-desk' && (
+          <CanteenStaffOrderDesk
+            orders={orders}
+            onRefreshOrders={fetchOrders}
+            staffCollegeId={selectedCollegeId}
           />
         )}
 
@@ -775,6 +850,18 @@ export const App: React.FC = () => {
             orders={orders}
             foodItems={foods}
             onDishCreated={handleDishCreated}
+          />
+        )}
+
+        {/* College Management Platform */}
+        {activeTab === 'college-management' && (
+          <CollegeManagementDashboard
+            currentUser={currentUser}
+            colleges={colleges}
+            selectedCollegeId={selectedCollegeId}
+            onSelectCollege={(id) => setSelectedCollegeId(id)}
+            onOpenOnboarding={() => setIsOnboardingOpen(true)}
+            onRefreshMenu={fetchMenu}
           />
         )}
       </main>
@@ -835,8 +922,20 @@ export const App: React.FC = () => {
           else if (role === 'Delivery Staff') setActiveTab('delivery');
           else if (role === 'Canteen Operator') setActiveTab('operator');
           else if (role === 'Admin') setActiveTab('admin');
+          else if (role === 'College Administrator' || role === 'Platform Super Administrator') setActiveTab('college-management');
           else setActiveTab('menu');
           showToast(`Welcome back, ${user.name}!`, 'success');
+        }}
+      />
+
+      {/* College Onboarding Modal */}
+      <CollegeOnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onSuccess={(newCollege) => {
+          setColleges(prev => [...prev, newCollege]);
+          setSelectedCollegeId(newCollege.id);
+          showToast(`College "${newCollege.name}" onboarded successfully!`, 'success');
         }}
       />
 

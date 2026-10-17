@@ -1,5 +1,6 @@
 const { supabase, isSupabaseConfigured } = require('../config/supabase');
 const QRCode = require('qrcode');
+const bcrypt = require('bcryptjs');
 
 // ============================================================================
 // ROLE & STATUS MAPPING HELPERS
@@ -12,6 +13,8 @@ const ROLE_MAP_TO_DB = {
   'Kitchen Staff': 'KITCHEN_STAFF',
   'Delivery Staff': 'DELIVERY_STAFF',
   'Branch Manager': 'BRANCH_MANAGER',
+  'College Administrator': 'COLLEGE_ADMIN',
+  'Platform Super Administrator': 'SUPER_ADMIN',
   'Admin': 'ADMIN'
 };
 
@@ -22,6 +25,8 @@ const ROLE_MAP_FROM_DB = {
   'KITCHEN_STAFF': 'Kitchen Staff',
   'DELIVERY_STAFF': 'Delivery Staff',
   'BRANCH_MANAGER': 'Branch Manager',
+  'COLLEGE_ADMIN': 'College Administrator',
+  'SUPER_ADMIN': 'Platform Super Administrator',
   'ADMIN': 'Admin'
 };
 
@@ -89,10 +94,16 @@ function formatMenuItem(row) {
     preparation_time: row.preparation_time ?? 10,
     isTodaySpecial: row.is_today_special ?? false,
     is_today_special: row.is_today_special ?? false,
+    dailyLimit: row.daily_limit ?? 100,
+    daily_limit: row.daily_limit ?? 100,
+    discountPercentage: row.discount_percentage ? parseFloat(row.discount_percentage) : 0,
+    discount_percentage: row.discount_percentage ? parseFloat(row.discount_percentage) : 0,
     popularity: row.popularity ?? 0,
     ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
     allergyInfo: Array.isArray(row.allergy_info) ? row.allergy_info : [],
     dietaryTags: Array.isArray(row.dietary_tags) ? row.dietary_tags : ['Pure Veg'],
+    collegeId: row.college_id || row.branch_id || '00000000-0000-0000-0000-000000000001',
+    college_id: row.college_id || row.branch_id || '00000000-0000-0000-0000-000000000001',
     branch: row.branch_id || 'Main Canteen',
     branches: row.branch_id ? [row.branch_id] : [],
     createdAt: row.created_at,
@@ -100,9 +111,13 @@ function formatMenuItem(row) {
   };
 }
 
+// Memory cache for tracking timestamps and notes when migration hasn't been run yet
+const orderTrackingMemory = new Map();
+
 // Convert Supabase order row to frontend expected shape
 function formatOrder(row, orderItems = []) {
   if (!row) return null;
+  const mem = orderTrackingMemory.get(row.id) || {};
   const items = (orderItems.length > 0 ? orderItems : (row.items_summary || [])).map(i => ({
     _id: i.id || i.menu_item_id,
     item: i.menu_item_id || i.id,
@@ -112,6 +127,8 @@ function formatOrder(row, orderItems = []) {
     image: i.image_url || i.image || '/images/food/placeholder.jpg',
     preparationTime: i.preparation_time || 10
   }));
+
+  const orderStatus = fromDbStatus(row.status);
 
   return {
     _id: row.id,
@@ -129,8 +146,10 @@ function formatOrder(row, orderItems = []) {
     pickupWindow: row.pickup_window,
     deliveryLocation: row.delivery_location,
     roomNumber: row.room_number,
+    collegeId: row.college_id || row.branch_id || '00000000-0000-0000-0000-000000000001',
+    college_id: row.college_id || row.branch_id || '00000000-0000-0000-0000-000000000001',
     branch: row.branch || 'Main Canteen',
-    status: fromDbStatus(row.status),
+    status: orderStatus,
     paymentMethod: row.payment_method,
     paymentStatus: row.payment_status,
     tokenStatus: row.token_status || 'ACTIVE',
@@ -138,6 +157,13 @@ function formatOrder(row, orderItems = []) {
     paidAt: row.paid_at,
     paidBy: row.paid_by,
     qrCodeData: row.qr_code_data || '',
+    acceptedAt: row.accepted_at || mem.acceptedAt || (['Confirmed', 'Preparing', 'Ready', 'Completed'].includes(orderStatus) ? row.created_at : null),
+    preparingAt: row.preparing_at || mem.preparingAt || (['Preparing', 'Ready', 'Completed'].includes(orderStatus) ? row.updated_at : null),
+    readyAt: row.ready_at || mem.readyAt || (['Ready', 'Completed'].includes(orderStatus) ? row.updated_at : null),
+    completedAt: row.completed_at || mem.completedAt || (orderStatus === 'Completed' ? (row.token_used_at || row.updated_at) : null),
+    cancelledAt: row.cancelled_at || mem.cancelledAt || (orderStatus === 'Cancelled' ? row.updated_at : null),
+    estimatedPrepMinutes: row.estimated_prep_minutes || mem.estimatedPrepMinutes || 15,
+    rejectionReason: row.rejection_reason || mem.rejectionReason || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -196,14 +222,101 @@ const authService = {
       programType: row.program_type,
       course: row.course,
       department: row.department,
-      phone: row.phone
+      phone: row.phone,
+      collegeId: row.college_id,
+      branch: row.branch_id
     };
   },
 
-  async createUser({ name, email, passwordHash, phone, role, studentId, degreeLevel, programType, course, department }) {
+  async registerStudent({ name, email, password, phone, role, studentId, degreeLevel, programType, course, department, collegeId }) {
+    if (!supabase) throw new Error('Database service is currently unavailable. Please verify connection.');
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanStudentId = studentId ? studentId.toUpperCase().trim() : null;
+
+    // Check duplicate email
+    const existing = await this.findUserByLogin(cleanEmail);
+    if (existing) {
+      const err = new Error('An account with this college email already exists. Please sign in instead.');
+      err.status = 400;
+      throw err;
+    }
+
+    // Check duplicate studentId
+    if (cleanStudentId) {
+      const { data: idCheck } = await supabase.from('profiles').select('id').eq('student_id', cleanStudentId).limit(1);
+      if (idCheck && idCheck.length > 0) {
+        const err = new Error(`Student ID "${cleanStudentId}" is already registered.`);
+        err.status = 400;
+        throw err;
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // Create user in Supabase Auth if admin API is available
+    let authUserId = null;
+    try {
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: cleanEmail,
+        password: password,
+        email_confirm: true,
+        user_metadata: { name: name.trim(), role: role || 'Student' }
+      });
+      if (!authError && authData?.user?.id) {
+        authUserId = authData.user.id;
+      }
+    } catch (e) {
+      // Fallback: profile UUID will be generated by Supabase
+    }
+
+    const insertPayload = {
+      name: name.trim(),
+      email: cleanEmail,
+      password_hash: passwordHash,
+      phone: phone || '',
+      role: toDbRole(role || 'Student'),
+      student_id: cleanStudentId,
+      degree_level: degreeLevel || 'Degree',
+      program_type: programType || 'BCA',
+      course: course || 'BCA',
+      department: department || 'Computer Applications'
+    };
+
+    if (authUserId) {
+      insertPayload.id = authUserId;
+    }
+
+    const { data, error } = await supabase.from('profiles').insert([insertPayload]).select();
+    if (error) {
+      if (error.code === '23505' || error.message.includes('unique constraint') || error.message.includes('profiles_email_key')) {
+        const err = new Error('An account with this college email already exists.');
+        err.status = 400;
+        throw err;
+      }
+      throw new Error(`Profile creation failed: ${error.message}`);
+    }
+
+    const row = data[0];
+    return {
+      _id: row.id,
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      role: fromDbRole(row.role),
+      studentId: row.student_id,
+      degreeLevel: row.degree_level,
+      programType: row.program_type,
+      course: row.course,
+      department: row.department
+    };
+  },
+
+  async createUser({ name, email, passwordHash, phone, role, studentId, degreeLevel, programType, course, department, collegeId }) {
     if (!supabase) throw new Error('Supabase client not initialized');
     const dbRole = toDbRole(role);
-    const { data, error } = await supabase.from('profiles').insert([{
+    const insertPayload = {
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password_hash: passwordHash,
@@ -214,7 +327,9 @@ const authService = {
       program_type: programType || 'BCA',
       course: course || 'BCA',
       department: department || 'Computer Applications'
-    }]).select();
+    };
+
+    const { data, error } = await supabase.from('profiles').insert([insertPayload]).select();
 
     if (error) throw new Error(`Supabase profile creation error: ${error.message}`);
     const row = data[0];
@@ -571,6 +686,245 @@ const orderService = {
 
     if (error) throw new Error(`Supabase mark paid error: ${error.message}`);
     return formatOrder(data[0]);
+  },
+
+  async getOrderTrackingDetails(orderId, requesterId) {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    const order = await this.getOrderById(orderId);
+    if (!order) return null;
+
+    // 1. Calculate real live queue metrics for this order's college/branch
+    let queueQuery = supabase
+      .from('orders')
+      .select('id, created_at, status, estimated_prep_minutes')
+      .in('status', ['RECEIVED', 'CONFIRMED', 'PREPARING']);
+
+    if (order.collegeId && order.collegeId !== '00000000-0000-0000-0000-000000000001') {
+      queueQuery = queueQuery.eq('college_id', order.collegeId);
+    } else if (order.branch) {
+      queueQuery = queueQuery.eq('branch', order.branch);
+    }
+
+    const { data: activeOrders, error: queueErr } = await queueQuery;
+    let ordersAhead = 0;
+    let totalActiveInCanteen = 0;
+
+    if (!queueErr && activeOrders) {
+      totalActiveInCanteen = activeOrders.length;
+      const orderCreatedTime = new Date(order.createdAt).getTime();
+      ordersAhead = activeOrders.filter(o => {
+        if (o.id === order.id) return false;
+        return new Date(o.created_at).getTime() < orderCreatedTime;
+      }).length;
+    }
+
+    // Determine dynamic canteen queue load
+    let loadLevel = 'LOW';
+    if (totalActiveInCanteen > 8) {
+      loadLevel = 'BUSY';
+    } else if (totalActiveInCanteen >= 4) {
+      loadLevel = 'NORMAL';
+    }
+
+    // Dynamic wait time estimate
+    const basePrepMinutes = parseInt(order.estimatedPrepMinutes || 15, 10);
+    const estimatedWaitMinutes = basePrepMinutes + (ordersAhead * 3);
+    const expectedReadyTime = new Date(new Date(order.createdAt).getTime() + (estimatedWaitMinutes * 60000)).toISOString();
+
+    // 2. Fetch order status timeline history from table or fallback
+    let historyRows = [];
+    try {
+      const { data: histData, error: histErr } = await supabase
+        .from('order_status_history')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: true });
+      if (!histErr && histData) {
+        historyRows = histData;
+      }
+    } catch (e) {
+      // Table might not exist yet before migration
+    }
+
+    const mem = orderTrackingMemory.get(orderId) || {};
+    if (historyRows.length === 0 && mem.history && mem.history.length > 0) {
+      historyRows = mem.history;
+    }
+
+    // 3. Build comprehensive timeline stages
+    const isCancelled = ['Cancelled', 'CANCELLED'].includes(order.status);
+    const isCompleted = ['Completed', 'COMPLETED'].includes(order.status);
+    const isReady = isCompleted || ['Ready', 'READY'].includes(order.status);
+    const isPreparing = isReady || ['Preparing', 'PREPARING'].includes(order.status);
+    const isConfirmed = isPreparing || ['Confirmed', 'CONFIRMED'].includes(order.status);
+
+    const stages = [
+      {
+        key: 'RECEIVED',
+        label: 'Order Placed',
+        description: 'Order placed & received by canteen',
+        timestamp: order.createdAt,
+        completed: true,
+        current: order.status === 'Received'
+      },
+      {
+        key: 'CONFIRMED',
+        label: 'Order Accepted',
+        description: 'Canteen accepted the order and queued for kitchen',
+        timestamp: order.acceptedAt || (isConfirmed ? order.createdAt : null),
+        completed: !isCancelled && isConfirmed,
+        current: !isCancelled && order.status === 'Confirmed'
+      },
+      {
+        key: 'PREPARING',
+        label: 'Preparing Your Food',
+        description: 'Chef is preparing your meal in the kitchen',
+        timestamp: order.preparingAt || (isPreparing ? order.updatedAt : null),
+        completed: !isCancelled && isPreparing,
+        current: !isCancelled && order.status === 'Preparing'
+      },
+      {
+        key: 'READY',
+        label: 'Ready for Pickup',
+        description: 'Food is freshly prepared and ready at pickup counter',
+        timestamp: order.readyAt || (isReady ? order.updatedAt : null),
+        completed: !isCancelled && isReady,
+        current: !isCancelled && order.status === 'Ready'
+      },
+      {
+        key: 'COMPLETED',
+        label: 'Picked Up / Completed',
+        description: 'Token verified & order handed over. Enjoy!',
+        timestamp: order.completedAt || order.tokenUsedAt || (isCompleted ? order.updatedAt : null),
+        completed: isCompleted,
+        current: isCompleted
+      }
+    ];
+
+    return {
+      order,
+      queue: {
+        ordersAhead,
+        totalActiveInCanteen,
+        loadLevel,
+        estimatedWaitMinutes,
+        expectedReadyTime,
+        isApproximate: true
+      },
+      timeline: {
+        currentStatus: order.status,
+        isCancelled,
+        cancelledAt: order.cancelledAt,
+        rejectionReason: order.rejectionReason || '',
+        stages
+      },
+      history: historyRows
+    };
+  },
+
+  async updateOrderStatusWithTracking(orderId, newStatus, { changedBy, prepMinutes, note, reason } = {}) {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    const existing = await this.getOrderById(orderId);
+    if (!existing) throw new Error('Order not found.');
+
+    const now = new Date().toISOString();
+    const dbStatus = toDbStatus(newStatus);
+    const updatePayload = {
+      status: dbStatus,
+      updated_at: now
+    };
+
+    const trackingUpdates = {};
+    if (prepMinutes) {
+      trackingUpdates.estimated_prep_minutes = parseInt(prepMinutes, 10);
+    }
+
+    if (dbStatus === 'CONFIRMED' || newStatus === 'Confirmed') {
+      trackingUpdates.accepted_at = now;
+    } else if (dbStatus === 'PREPARING' || newStatus === 'Preparing') {
+      trackingUpdates.preparing_at = now;
+    } else if (dbStatus === 'READY' || newStatus === 'Ready') {
+      trackingUpdates.ready_at = now;
+    } else if (dbStatus === 'COMPLETED' || newStatus === 'Completed') {
+      trackingUpdates.completed_at = now;
+      updatePayload.token_status = 'USED';
+      updatePayload.token_used_at = now;
+    } else if (dbStatus === 'CANCELLED' || newStatus === 'Cancelled' || newStatus === 'Rejected') {
+      trackingUpdates.cancelled_at = now;
+      trackingUpdates.rejection_reason = reason || note || 'Cancelled by staff';
+    }
+
+    // Update in-memory tracking cache as immediate resilient store
+    const mem = orderTrackingMemory.get(orderId) || { history: [] };
+    if (trackingUpdates.accepted_at) mem.acceptedAt = trackingUpdates.accepted_at;
+    if (trackingUpdates.preparing_at) mem.preparingAt = trackingUpdates.preparing_at;
+    if (trackingUpdates.ready_at) mem.readyAt = trackingUpdates.ready_at;
+    if (trackingUpdates.completed_at) mem.completedAt = trackingUpdates.completed_at;
+    if (trackingUpdates.cancelled_at) mem.cancelledAt = trackingUpdates.cancelled_at;
+    if (trackingUpdates.estimated_prep_minutes) mem.estimatedPrepMinutes = trackingUpdates.estimated_prep_minutes;
+    if (trackingUpdates.rejection_reason) mem.rejectionReason = trackingUpdates.rejection_reason;
+
+    const historyRecord = {
+      order_id: orderId,
+      old_status: existing.status,
+      new_status: newStatus,
+      changed_by: changedBy,
+      note: note || reason || '',
+      created_at: now
+    };
+    if (!mem.history) mem.history = [];
+    mem.history.push(historyRecord);
+    orderTrackingMemory.set(orderId, mem);
+
+    // Try updating orders table with tracking columns
+    let updatedRow = null;
+    try {
+      const fullPayload = { ...updatePayload, ...trackingUpdates };
+      const { data, error } = await supabase
+        .from('orders')
+        .update(fullPayload)
+        .eq('id', orderId)
+        .select();
+
+      if (!error && data && data.length > 0) {
+        updatedRow = data[0];
+      }
+    } catch (colErr) {
+      console.warn('[Tracking Column Update Warning]', colErr.message);
+    }
+
+    // Fallback update without new schema columns if schema cache lacks them
+    if (!updatedRow) {
+      const { data: fallbackData, error: fallbackErr } = await supabase
+        .from('orders')
+        .update(updatePayload)
+        .eq('id', orderId)
+        .select();
+
+      if (fallbackErr) throw new Error(`Supabase update error: ${fallbackErr.message}`);
+      updatedRow = fallbackData[0];
+    }
+
+    // Handle token used update if completed
+    if (newStatus === 'Completed' || dbStatus === 'COMPLETED') {
+      try {
+        await supabase
+          .from('digital_tokens')
+          .update({ status: 'USED', verified_at: now, verified_by: changedBy })
+          .eq('order_id', orderId);
+      } catch (tokErr) {
+        console.warn('[Token Update Warning]', tokErr.message);
+      }
+    }
+
+    // Record in order_status_history table if available
+    try {
+      await supabase.from('order_status_history').insert([historyRecord]);
+    } catch (histInsertErr) {
+      // Table might not exist yet
+    }
+
+    return formatOrder(updatedRow);
   }
 };
 
@@ -1020,6 +1374,506 @@ const analyticsService = {
   }
 };
 
+// ============================================================================
+// MULTI-COLLEGE SERVICE (ISOLATION, SCHEDULES, MENUS, ORDERS, ANALYTICS)
+// ============================================================================
+const collegeService = {
+  async getColleges() {
+    if (!supabase) return [];
+    try {
+      const { data, error } = await supabase
+        .from('colleges')
+        .select('*, college_schedules(*)')
+        .order('name');
+      if (!error && data && data.length > 0) {
+        return data.map(col => ({
+          id: col.id,
+          name: col.name,
+          code: col.code,
+          email: col.email,
+          phone: col.phone || '',
+          address: col.address || '',
+          logoUrl: col.logo_url || '/images/college_logo.png',
+          isActive: col.is_active ?? true,
+          schedule: col.college_schedules?.[0] ? {
+            openTime: col.college_schedules[0].open_time,
+            closeTime: col.college_schedules[0].close_time,
+            breakfastWindow: col.college_schedules[0].breakfast_window,
+            lunchWindow: col.college_schedules[0].lunch_window,
+            snacksWindow: col.college_schedules[0].snacks_window,
+            dinnerWindow: col.college_schedules[0].dinner_window,
+            onlineOrderingEnabled: col.college_schedules[0].online_ordering_enabled,
+            ordersPaused: col.college_schedules[0].orders_paused,
+            pauseMessage: col.college_schedules[0].pause_message,
+            weeklyOffDays: col.college_schedules[0].weekly_off_days,
+            specialHolidays: col.college_schedules[0].special_holidays
+          } : null
+        }));
+      }
+    } catch (e) {
+      // Fallback: branch table
+    }
+
+    // Fallback: query branches table as colleges
+    const { data: branchData } = await supabase.from('branches').select('*');
+    if (!branchData || branchData.length === 0) {
+      return [{
+        id: '00000000-0000-0000-0000-000000000001',
+        name: 'Main Campus Central Canteen',
+        code: 'MCC',
+        email: 'admin@centralcanteen.edu',
+        phone: '+91 98765 43210',
+        address: 'Central Academic Block, Campus Plaza',
+        logoUrl: '/images/college_logo.png',
+        isActive: true,
+        schedule: {
+          openTime: '08:00 AM',
+          closeTime: '08:00 PM',
+          onlineOrderingEnabled: true,
+          ordersPaused: false,
+          pauseMessage: ''
+        }
+      }];
+    }
+
+    return branchData.map(b => ({
+      id: b.id,
+      name: b.name,
+      code: b.code || 'MCC',
+      email: `admin@${(b.code || 'campus').toLowerCase()}.edu`,
+      phone: '+91 98765 43210',
+      address: b.location || 'Campus Canteen Block',
+      logoUrl: '/images/college_logo.png',
+      isActive: b.is_active ?? true,
+      schedule: {
+        openTime: b.operating_hours?.open || '08:00 AM',
+        closeTime: b.operating_hours?.close || '08:00 PM',
+        onlineOrderingEnabled: true,
+        ordersPaused: b.is_closed ?? false,
+        pauseMessage: b.closure_message || ''
+      }
+    }));
+  },
+
+  async getCollegeById(id) {
+    if (!supabase) return null;
+    try {
+      const { data, error } = await supabase
+        .from('colleges')
+        .select('*, college_schedules(*)')
+        .eq('id', id)
+        .limit(1);
+      if (!error && data && data.length > 0) {
+        const col = data[0];
+        return {
+          id: col.id,
+          name: col.name,
+          code: col.code,
+          email: col.email,
+          phone: col.phone || '',
+          address: col.address || '',
+          logoUrl: col.logo_url || '/images/college_logo.png',
+          isActive: col.is_active ?? true,
+          schedule: col.college_schedules?.[0] ? {
+            openTime: col.college_schedules[0].open_time,
+            closeTime: col.college_schedules[0].close_time,
+            breakfastWindow: col.college_schedules[0].breakfast_window,
+            lunchWindow: col.college_schedules[0].lunch_window,
+            snacksWindow: col.college_schedules[0].snacks_window,
+            dinnerWindow: col.college_schedules[0].dinner_window,
+            onlineOrderingEnabled: col.college_schedules[0].online_ordering_enabled,
+            ordersPaused: col.college_schedules[0].orders_paused,
+            pauseMessage: col.college_schedules[0].pause_message,
+            weeklyOffDays: col.college_schedules[0].weekly_off_days,
+            specialHolidays: col.college_schedules[0].special_holidays
+          } : null
+        };
+      }
+    } catch (e) {}
+
+    // Fallback: check branches table
+    const { data: bData } = await supabase.from('branches').select('*').eq('id', id).limit(1);
+    if (bData && bData.length > 0) {
+      const b = bData[0];
+      return {
+        id: b.id,
+        name: b.name,
+        code: b.code || 'MCC',
+        email: `admin@${(b.code || 'campus').toLowerCase()}.edu`,
+        phone: '+91 98765 43210',
+        address: b.location || '',
+        logoUrl: '/images/college_logo.png',
+        isActive: b.is_active ?? true,
+        schedule: {
+          openTime: b.operating_hours?.open || '08:00 AM',
+          closeTime: b.operating_hours?.close || '08:00 PM',
+          onlineOrderingEnabled: true,
+          ordersPaused: b.is_closed ?? false,
+          pauseMessage: b.closure_message || ''
+        }
+      };
+    }
+
+    return null;
+  },
+
+  async registerCollege({ name, code, email, phone, address, logoUrl, adminName, adminPassword }) {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    const cleanCode = code.toUpperCase().trim();
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Check if code or email exists
+    try {
+      const { data: existing } = await supabase
+        .from('colleges')
+        .select('id')
+        .or(`code.eq.${cleanCode},email.eq.${cleanEmail}`)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        const err = new Error('A college with this code or email already exists.');
+        err.status = 400;
+        throw err;
+      }
+    } catch (e) {
+      if (e.status === 400) throw e;
+    }
+
+    let collegeId = null;
+    try {
+      const { data: newCol, error: colErr } = await supabase.from('colleges').insert([{
+        name: name.trim(),
+        code: cleanCode,
+        email: cleanEmail,
+        phone: phone || '',
+        address: address || '',
+        logo_url: logoUrl || '/images/college_logo.png',
+        is_active: true
+      }]).select();
+
+      if (!colErr && newCol && newCol.length > 0) {
+        collegeId = newCol[0].id;
+        // Create default schedule
+        await supabase.from('college_schedules').insert([{
+          college_id: collegeId,
+          open_time: '08:00 AM',
+          close_time: '08:00 PM',
+          online_ordering_enabled: true,
+          orders_paused: false
+        }]);
+      }
+    } catch (e) {}
+
+    // Fallback if colleges table not yet created
+    if (!collegeId) {
+      const { data: newBranch, error: bErr } = await supabase.from('branches').insert([{
+        name: name.trim(),
+        code: cleanCode,
+        location: address || '',
+        operating_hours: { open: '08:00 AM', close: '08:00 PM' },
+        is_active: true
+      }]).select();
+      if (bErr) throw new Error(`Failed to create college: ${bErr.message}`);
+      collegeId = newBranch[0].id;
+    }
+
+    // Register College Administrator
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(adminPassword || 'Admin@123', salt);
+
+    let authUserId = null;
+    try {
+      const { data: authData } = await supabase.auth.admin.createUser({
+        email: cleanEmail,
+        password: adminPassword || 'Admin@123',
+        email_confirm: true,
+        user_metadata: { name: adminName.trim(), role: 'College Administrator' }
+      });
+      if (authData?.user?.id) authUserId = authData.user.id;
+    } catch (e) {}
+
+    const adminProfilePayload = {
+      name: adminName.trim(),
+      email: cleanEmail,
+      password_hash: passwordHash,
+      phone: phone || '',
+      role: 'COLLEGE_ADMIN',
+      branch_id: collegeId
+    };
+    if (authUserId) adminProfilePayload.id = authUserId;
+
+    let adminProfile = null;
+    try {
+      // First try inserting with college_id
+      const { data: pData, error: pErr } = await supabase
+        .from('profiles')
+        .insert([{ ...adminProfilePayload, college_id: collegeId }])
+        .select();
+      if (!pErr && pData) adminProfile = pData[0];
+    } catch (e) {}
+
+    if (!adminProfile) {
+      // Fallback without college_id column
+      const { data: pData2, error: pErr2 } = await supabase
+        .from('profiles')
+        .insert([{ ...adminProfilePayload, role: 'ADMIN' }])
+        .select();
+      if (pErr2 && !pErr2.message.includes('unique')) {
+        console.warn('Admin profile creation notice:', pErr2.message);
+      }
+      if (pData2) adminProfile = pData2[0];
+    }
+
+    // Try linking to college_members
+    if (adminProfile) {
+      try {
+        await supabase.from('college_members').insert([{
+          college_id: collegeId,
+          profile_id: adminProfile.id,
+          role: 'COLLEGE_ADMIN'
+        }]);
+      } catch (e) {}
+    }
+
+    return {
+      id: collegeId,
+      name,
+      code: cleanCode,
+      email: cleanEmail,
+      adminEmail: cleanEmail,
+      message: 'College and College Administrator registered successfully.'
+    };
+  },
+
+  async updateSchedule(collegeId, scheduleData) {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    const {
+      openTime,
+      closeTime,
+      breakfastWindow,
+      lunchWindow,
+      snacksWindow,
+      dinnerWindow,
+      onlineOrderingEnabled,
+      ordersPaused,
+      pauseMessage,
+      weeklyOffDays,
+      specialHolidays
+    } = scheduleData;
+
+    try {
+      const schedulePayload = {
+        college_id: collegeId,
+        open_time: openTime || '08:00 AM',
+        close_time: closeTime || '08:00 PM',
+        breakfast_window: breakfastWindow || { start: '08:00 AM', end: '11:00 AM', enabled: true },
+        lunch_window: lunchWindow || { start: '12:00 PM', end: '03:00 PM', enabled: true },
+        snacks_window: snacksWindow || { start: '04:00 PM', end: '06:30 PM', enabled: true },
+        dinner_window: dinnerWindow || { start: '07:30 PM', end: '10:00 PM', enabled: true },
+        online_ordering_enabled: onlineOrderingEnabled ?? true,
+        orders_paused: ordersPaused ?? false,
+        pause_message: pauseMessage || '',
+        weekly_off_days: weeklyOffDays || ['Sunday'],
+        special_holidays: specialHolidays || [],
+        updated_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase
+        .from('college_schedules')
+        .upsert(schedulePayload, { onConflict: 'college_id' })
+        .select();
+      if (!error && data && data.length > 0) return data[0];
+    } catch (e) {}
+
+    // Also sync to branches if present
+    try {
+      await supabase
+        .from('branches')
+        .update({
+          is_closed: ordersPaused ?? false,
+          closure_message: pauseMessage || '',
+          operating_hours: { open: openTime || '08:00 AM', close: closeTime || '08:00 PM' }
+        })
+        .eq('id', collegeId);
+    } catch (e) {}
+
+    return { success: true, message: 'Schedule updated successfully.' };
+  },
+
+  async getCollegeMenu(collegeId, category) {
+    if (!supabase) return [];
+    let query = supabase.from('menu_items').select('*');
+    if (collegeId && collegeId !== 'all') {
+      try {
+        query = query.or(`college_id.eq.${collegeId},branch_id.eq.${collegeId}`);
+      } catch (e) {
+        query = query.eq('branch_id', collegeId);
+      }
+    }
+    if (category && category !== 'All') {
+      query = query.eq('category', category);
+    }
+    query = query.order('name');
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) {
+      // Fallback: fetch all menu items if filter column had issues
+      const { data: allData } = await supabase.from('menu_items').select('*');
+      return (allData || []).map(formatMenuItem);
+    }
+    return (data || []).map(formatMenuItem);
+  },
+
+  async createCollegeMenuItem(collegeId, itemData) {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    const payload = {
+      name: itemData.name.trim(),
+      description: itemData.description || '',
+      price: parseFloat(itemData.price),
+      category: itemData.category || 'Meals',
+      image_url: itemData.image || itemData.imageUrl || '/images/food/placeholder.jpg',
+      is_vegetarian: true, // STRICTLY 100% PURE VEGETARIAN
+      is_available: itemData.isAvailable ?? true,
+      stock_quantity: parseInt(itemData.stockQuantity || 50, 10),
+      preparation_time: parseInt(itemData.preparationTime || 10, 10),
+      is_today_special: Boolean(itemData.isTodaySpecial),
+      daily_limit: parseInt(itemData.dailyLimit || 100, 10),
+      discount_percentage: parseFloat(itemData.discountPercentage || 0),
+      branch_id: collegeId,
+      college_id: collegeId
+    };
+
+    let result = null;
+    try {
+      const { data, error } = await supabase.from('menu_items').insert([payload]).select();
+      if (!error && data) result = data[0];
+    } catch (e) {}
+
+    if (!result) {
+      // Fallback without college_id, daily_limit, discount_percentage if columns not yet added
+      const cleanPayload = {
+        name: payload.name,
+        description: payload.description,
+        price: payload.price,
+        category: payload.category,
+        image_url: payload.image_url,
+        is_vegetarian: true,
+        is_available: payload.is_available,
+        stock_quantity: payload.stock_quantity,
+        preparation_time: payload.preparation_time,
+        is_today_special: payload.is_today_special,
+        branch_id: collegeId
+      };
+      const { data: d2, error: err2 } = await supabase.from('menu_items').insert([cleanPayload]).select();
+      if (err2) throw new Error(`Failed to create food item: ${err2.message}`);
+      result = d2[0];
+    }
+
+    return formatMenuItem(result);
+  },
+
+  async updateCollegeMenuItem(itemId, updates) {
+    return await menuService.updateMenuItem(itemId, updates);
+  },
+
+  async deleteCollegeMenuItem(itemId) {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
+    if (error) throw new Error(`Failed to delete food item: ${error.message}`);
+    return { success: true, message: 'Item deleted successfully.' };
+  },
+
+  async getCollegeOrders(collegeId, statusFilter) {
+    if (!supabase) return [];
+    let data = null;
+
+    if (collegeId && collegeId !== 'all') {
+      try {
+        let q1 = supabase.from('orders').select('*').or(`college_id.eq.${collegeId},branch.eq.${collegeId}`).order('created_at', { ascending: false });
+        if (statusFilter && statusFilter !== 'All') {
+          q1 = q1.eq('status', toDbStatus(statusFilter));
+        }
+        const res1 = await q1.limit(100);
+        if (!res1.error && res1.data) {
+          data = res1.data;
+        }
+      } catch (e) {}
+    }
+
+    if (!data) {
+      // Fallback: fetch orders without college_id filter for complete backward-compatibility
+      let q2 = supabase.from('orders').select('*').order('created_at', { ascending: false });
+      if (statusFilter && statusFilter !== 'All') {
+        q2 = q2.eq('status', toDbStatus(statusFilter));
+      }
+      const res2 = await q2.limit(100);
+      if (!res2.error && res2.data) {
+        data = res2.data;
+      }
+    }
+
+    return (data || []).map(row => formatOrder(row));
+  },
+
+  async updateCollegeOrderStatus(orderId, status) {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    const dbStatus = toDbStatus(status);
+    const updates = {
+      status: dbStatus,
+      updated_at: new Date().toISOString()
+    };
+    if (status === 'Completed' || status === 'Delivered') {
+      updates.token_status = 'REDEEMED';
+      updates.token_used_at = new Date().toISOString();
+    }
+    const { data, error } = await supabase.from('orders').update(updates).eq('id', orderId).select();
+    if (error) throw new Error(`Order update error: ${error.message}`);
+    return formatOrder(data[0]);
+  },
+
+  async getCollegeAnalytics(collegeId) {
+    const orders = await this.getCollegeOrders(collegeId);
+    let totalRevenue = 0;
+    let completedCount = 0;
+    let pendingCount = 0;
+    let preparingCount = 0;
+    let cancelledCount = 0;
+    const itemMap = {};
+
+    orders.forEach(o => {
+      if (o.status !== 'Cancelled') {
+        totalRevenue += o.totalAmount || 0;
+      }
+      if (o.status === 'Completed' || o.status === 'Delivered') completedCount++;
+      else if (o.status === 'Preparing') preparingCount++;
+      else if (o.status === 'Cancelled') cancelledCount++;
+      else pendingCount++;
+
+      (o.items || []).forEach(item => {
+        if (!itemMap[item.name]) {
+          itemMap[item.name] = { name: item.name, count: 0, revenue: 0 };
+        }
+        itemMap[item.name].count += item.quantity || 1;
+        itemMap[item.name].revenue += (item.price || 0) * (item.quantity || 1);
+      });
+    });
+
+    const topDishes = Object.values(itemMap)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    return {
+      totalOrders: orders.length,
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      completedOrders: completedCount,
+      pendingOrders: pendingCount,
+      preparingOrders: preparingCount,
+      cancelledOrders: cancelledCount,
+      topDishes,
+      estimatedMargin: Math.round(totalRevenue * 0.55),
+      activeQueueLength: pendingCount + preparingCount
+    };
+  }
+};
+
 module.exports = {
   isSupabaseConfigured,
   authService,
@@ -1029,6 +1883,7 @@ module.exports = {
   cashRegisterService,
   branchService,
   analyticsService,
+  collegeService,
   formatMenuItem,
   formatOrder
 };

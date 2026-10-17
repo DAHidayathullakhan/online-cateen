@@ -23,10 +23,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [studentId, setStudentId] = useState('STU-2026-001');
   const [degreeLevel, setDegreeLevel] = useState<'Degree' | "Master's">('Degree');
   const [course, setCourse] = useState('BCA');
+  const [collegeId, setCollegeId] = useState('');
+  const [colleges, setColleges] = useState<{ id: string; name: string; code: string }[]>([]);
 
   // UI state
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch('/api/colleges')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setColleges(data.data);
+          setCollegeId(data.data[0].id);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   if (!isOpen) return null;
 
@@ -72,7 +86,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           degreeLevel,
           programType: course,
           course,
-          department: 'Computer Applications'
+          department: 'Computer Applications',
+          collegeId
         })
       });
 
@@ -196,6 +211,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <option value="MBA">MBA - Master of Business Administration</option>
                   </select>
                 </div>
+
+                {colleges.length > 0 && (
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Campus / College</label>
+                    <select
+                      value={collegeId}
+                      onChange={(e) => setCollegeId(e.target.value)}
+                      className="w-full text-xs font-bold px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-slate-50"
+                    >
+                      {colleges.map(c => (
+                        <option key={c.id} value={c.id}>
+                          🏛️ {c.name} ({c.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </>
             )}
 
@@ -266,7 +298,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {!isRegister && (
             <div className="mt-6 pt-5 border-t border-slate-100">
               <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block text-center mb-2.5">
-                Quick 1-Click Demo Login (MongoDB Seeded Accounts)
+                Quick 1-Click Demo Login (Supabase Verified Accounts)
               </span>
               <div className="grid grid-cols-3 gap-1.5 text-[11px]">
                 <button

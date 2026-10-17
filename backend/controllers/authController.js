@@ -1,8 +1,6 @@
-const User = require('../models/User');
-const StudentProfile = require('../models/StudentProfile');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { isSupabaseConfigured, authService } = require('../services/supabaseService');
+const { isSupabaseConfigured, authService, collegeService } = require('../services/supabaseService');
 
 const generateToken = (id) => {
   return jwt.sign(
@@ -14,91 +12,86 @@ const generateToken = (id) => {
 
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, password, phone, role, studentId, degreeLevel, programType, course, department } = req.body;
+    const { name, email, password, phone, role, studentId, degreeLevel, programType, course, department, collegeId } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Please provide name, email, and password.' });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    if (isSupabaseConfigured()) {
-      const existingUser = await authService.findUserByLogin(email);
-      if (existingUser) {
-        return res.status(400).json({ success: false, message: 'User with this email already exists.' });
-      }
-
-      const user = await authService.createUser({
-        name,
-        email,
-        passwordHash,
-        phone,
-        role: role || 'Student',
-        studentId,
-        degreeLevel,
-        programType,
-        course,
-        department
-      });
-
-      const token = generateToken(user.id || user._id);
-      return res.status(201).json({
-        success: true,
-        token,
-        data: {
-          id: user.id || user._id,
-          _id: user.id || user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          studentId: user.studentId
-        }
+    if (!isSupabaseConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database service (Supabase) is temporarily unavailable. Please verify your connection configuration.'
       });
     }
 
-    // Fallback: MongoDB
-    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
-    if (existingUser) {
-      return res.status(400).json({ success: false, message: 'User with this email already exists.' });
-    }
-
-    const user = await User.create({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      password: passwordHash,
-      phone: phone || '',
+    const user = await authService.registerStudent({
+      name,
+      email,
+      password,
+      phone,
       role: role || 'Student',
-      studentId: studentId ? studentId.toUpperCase().trim() : undefined
+      studentId,
+      degreeLevel,
+      programType,
+      course,
+      department,
+      collegeId
     });
 
-    if (user.role === 'Student' || user.role === "Master's Student") {
-      await StudentProfile.create({
-        user: user._id,
-        studentId: user.studentId || `STU-${Date.now().toString().slice(-6)}`,
-        degreeLevel: degreeLevel || 'Degree',
-        programType: programType || 'BCA',
-        course: course || 'BCA',
-        department: department || 'Computer Applications'
-      });
-    }
-
-    const token = generateToken(user._id);
-
-    res.status(201).json({
+    const token = generateToken(user.id || user._id);
+    return res.status(201).json({
       success: true,
       token,
       data: {
-        id: user._id,
-        _id: user._id,
+        id: user.id || user._id,
+        _id: user.id || user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        studentId: user.studentId
+        studentId: user.studentId,
+        collegeId: user.collegeId
       }
     });
   } catch (err) {
-    next(err);
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return res.status(400).json({ success: false, message: err.message || 'Registration failed.' });
+  }
+};
+
+exports.registerCollege = async (req, res, next) => {
+  try {
+    const { name, code, email, phone, address, logoUrl, adminName, adminPassword } = req.body;
+
+    if (!name || !code || !email || !adminName || !adminPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide college name, code, official email, admin name, and admin password.'
+      });
+    }
+
+    const result = await collegeService.registerCollege({
+      name,
+      code,
+      email,
+      phone,
+      address,
+      logoUrl,
+      adminName,
+      adminPassword
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: result
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return res.status(400).json({ success: false, message: err.message || 'College onboarding failed.' });
   }
 };
 
@@ -111,41 +104,14 @@ exports.login = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide email or Student ID and password.' });
     }
 
-    if (isSupabaseConfigured()) {
-      const user = await authService.findUserByLogin(loginKey);
-      if (!user) {
-        return res.status(401).json({ success: false, message: 'Invalid credentials. User not found.' });
-      }
-
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(401).json({ success: false, message: 'Invalid credentials. Password incorrect.' });
-      }
-
-      const token = generateToken(user.id || user._id);
-      return res.json({
-        success: true,
-        token,
-        data: {
-          id: user.id || user._id,
-          _id: user.id || user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          studentId: user.studentId,
-          branch: user.branch
-        }
+    if (!isSupabaseConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database service (Supabase) is temporarily unavailable. Please verify your connection configuration.'
       });
     }
 
-    // Fallback: MongoDB
-    const user = await User.findOne({
-      $or: [
-        { email: loginKey.toLowerCase() },
-        { studentId: loginKey.toUpperCase() }
-      ]
-    });
-
+    const user = await authService.findUserByLogin(loginKey);
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials. User not found.' });
     }
@@ -155,54 +121,42 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials. Password incorrect.' });
     }
 
-    const token = generateToken(user._id);
-
-    res.json({
+    const token = generateToken(user.id || user._id);
+    return res.json({
       success: true,
       token,
       data: {
-        id: user._id,
-        _id: user._id,
+        id: user.id || user._id,
+        _id: user.id || user._id,
         name: user.name,
         email: user.email,
         role: user.role,
         studentId: user.studentId,
-        branch: user.branch
+        branch: user.branch,
+        collegeId: user.collegeId
       }
     });
   } catch (err) {
-    next(err);
+    return res.status(400).json({ success: false, message: err.message || 'Login failed.' });
   }
 };
 
 exports.getMe = async (req, res, next) => {
   try {
-    if (isSupabaseConfigured()) {
-      const user = await authService.findUserById(req.user.id || req.user._id);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found.' });
-      }
-      return res.json({
-        success: true,
-        data: user
-      });
+    if (!isSupabaseConfigured()) {
+      return res.status(503).json({ success: false, message: 'Database service unavailable.' });
     }
 
-    const user = await User.findById(req.user.id).select('-password');
-    let profile = null;
-    if (user.role === 'Student' || user.role === "Master's Student") {
-      profile = await StudentProfile.findOne({ user: user._id });
+    const user = await authService.findUserById(req.user.id || req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
     }
-
-    res.json({
+    return res.json({
       success: true,
-      data: {
-        ...user.toObject(),
-        profile
-      }
+      data: user
     });
   } catch (err) {
-    next(err);
+    return res.status(400).json({ success: false, message: err.message || 'Error fetching user profile.' });
   }
 };
 

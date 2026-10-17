@@ -75,6 +75,13 @@ const connectDB = async () => {
     console.log('Native MongoDB on port 27017 not detected.');
   }
 
+  mongoose.set('bufferCommands', false);
+
+  if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+    console.log('[Database] Serverless/Production environment detected. Primary is Supabase PostgreSQL.');
+    return null;
+  }
+
   // Use persistent in-memory MongoDB
   console.log('Starting in-memory MongoMemoryServer database...');
   try {

@@ -318,12 +318,114 @@ exports.markCashReceived = async (req, res, next) => {
     order.paidBy = req.user._id;
     await order.save();
 
+      res.json({
+        success: true,
+        message: `Cash payment of ₹${order.totalAmount} marked as received by ${req.user.name}.`,
+        data: order
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  exports.getOrderTracking = async (req, res, next) => {
+    try {
+      const orderId = req.params.id;
+      const requesterId = req.user.id || req.user._id;
+      const staffRoles = ['Admin', 'Kitchen Staff', 'Canteen Operator', 'Delivery Staff', 'Branch Manager', 'College Administrator', 'Platform Super Administrator'];
+      const isStaff = staffRoles.includes(req.user.role);
+
+      if (isSupabaseConfigured()) {
+        const trackingData = await orderService.getOrderTrackingDetails(orderId, requesterId);
+        if (!trackingData) {
+          return res.status(404).json({ success: false, message: 'Order not found for tracking.' });
+        }
+
+        const orderOwnerId = trackingData.order.user || trackingData.order.userId;
+        if (!isStaff && String(orderOwnerId) !== String(requesterId)) {
+          return res.status(403).json({ success: false, message: 'Not authorized to view tracking for this order.' });
+        }
+
+        return res.json({ success: true, data: trackingData });
+      }
+
+      // MongoDB fallback
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({ success: false, message: 'Order not found for tracking.' });
+      }
+      if (!isStaff && String(order.user) !== String(requesterId)) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view tracking for this order.' });
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          order,
+          queue: { ordersAhead: 0, totalActiveInCanteen: 0, loadLevel: 'LOW', estimatedWaitMinutes: 15, expectedReadyTime: new Date(Date.now() + 15 * 60000).toISOString(), isApproximate: true },
+          timeline: {
+            currentStatus: order.status,
+            isCancelled: order.status === 'Cancelled',
+            cancelledAt: null,
+            rejectionReason: '',
+            stages: [
+              { key: 'RECEIVED', label: 'Order Placed', timestamp: order.createdAt, completed: true, current: order.status === 'Received' },
+              { key: 'CONFIRMED', label: 'Order Accepted', timestamp: order.createdAt, completed: ['Confirmed', 'Preparing', 'Ready', 'Completed'].includes(order.status), current: order.status === 'Confirmed' },
+              { key: 'PREPARING', label: 'Preparing Your Food', timestamp: order.updatedAt, completed: ['Preparing', 'Ready', 'Completed'].includes(order.status), current: order.status === 'Preparing' },
+              { key: 'READY', label: 'Ready for Pickup', timestamp: order.updatedAt, completed: ['Ready', 'Completed'].includes(order.status), current: order.status === 'Ready' },
+              { key: 'COMPLETED', label: 'Picked Up / Completed', timestamp: order.tokenUsedAt, completed: order.status === 'Completed', current: order.status === 'Completed' }
+            ]
+          },
+          history: []
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  exports.updateTrackingStatus = async (req, res, next) => {
+    try {
+      const orderId = req.params.id;
+      const { status, prepMinutes, note, reason } = req.body;
+      if (!status) {
+        return res.status(400).json({ success: false, message: 'Status is required.' });
+      }
+
+      const staffId = req.user.id || req.user._id;
+
+      if (isSupabaseConfigured()) {
+        const updated = await orderService.updateOrderStatusWithTracking(orderId, status, {
+          changedBy: staffId,
+          prepMinutes,
+          note,
+          reason
+        });
+
+        return res.json({
+          success: true,
+          message: `Order status updated to ${status}.`,
+          data: updated
+        });
+      }
+
+      // MongoDB fallback
+      const order = await Order.findByIdAndUpdate(orderId, { status }, { new: true });
+      return res.json({
+        success: true,
+        message: `Order status updated to ${status}.`,
+        data: order
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  exports.getRealtimeConfig = (req, res) => {
     res.json({
       success: true,
-      message: `Cash payment of ₹${order.totalAmount} marked as received by ${req.user.name}.`,
-      data: order
+      supabaseUrl: process.env.SUPABASE_URL || 'https://ldopzehaticltnpntctm.supabase.co',
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'sb_publishable_oLudAsJR3JIcIK9agc-mXA_jpvFbUQj'
     });
-  } catch (err) {
-    next(err);
-  }
-};
+  };
+

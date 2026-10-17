@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ShoppingBag, User as UserIcon, ChefHat, Truck, Shield, Store, LogOut, Bell, Menu, X, Calendar, MapPin } from 'lucide-react';
-import { User } from '../types';
+import { ShoppingBag, User as UserIcon, ChefHat, Truck, Shield, Store, LogOut, Bell, Menu, X, Calendar, MapPin, Building2 } from 'lucide-react';
+import { User, College } from '../types';
 
 interface NavbarProps {
   activeTab: string;
@@ -10,6 +10,9 @@ interface NavbarProps {
   currentUser: User | null;
   openAuth: () => void;
   onLogout: () => void;
+  colleges?: College[];
+  selectedCollegeId?: string;
+  onSelectCollege?: (id: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -19,7 +22,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   openCart,
   currentUser,
   openAuth,
-  onLogout
+  onLogout,
+  colleges = [],
+  selectedCollegeId,
+  onSelectCollege
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -82,6 +88,30 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('tracking')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+              activeTab === 'tracking'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100 hover:text-emerald-900'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span>📍 Live Tracking</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('staff-desk')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+              activeTab === 'staff-desk'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-amber-800 bg-amber-50/70 hover:bg-amber-100'
+            }`}
+          >
+            <ChefHat className="w-3.5 h-3.5 text-amber-600" />
+            Kitchen Desk
+          </button>
+
+          <button
             onClick={() => setActiveTab('kitchen')}
             className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${
               activeTab === 'kitchen'
@@ -90,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             <ChefHat className="w-3.5 h-3.5 text-amber-500" />
-            Kitchen KDS
+            KDS Board
           </button>
 
           <button
@@ -127,6 +157,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Shield className="w-3.5 h-3.5 text-blue-600" />
             Admin
+          </button>
+
+          <button
+            onClick={() => setActiveTab('college-management')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+              activeTab === 'college-management'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 hover:text-indigo-900'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>College Management</span>
           </button>
         </nav>
 
@@ -268,6 +310,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             📦 My Orders & Digital Tokens
           </button>
           <button
+            onClick={() => { setActiveTab('tracking'); setMobileMenuOpen(false); }}
+            className={`w-full text-left py-2 px-3 rounded-xl text-xs font-black flex items-center gap-2 ${
+              activeTab === 'tracking' ? 'bg-emerald-600 text-white' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span>📍 Live Order Tracking</span>
+          </button>
+          <button
+            onClick={() => { setActiveTab('staff-desk'); setMobileMenuOpen(false); }}
+            className={`w-full text-left py-2 px-3 rounded-xl text-xs font-black ${
+              activeTab === 'staff-desk' ? 'bg-amber-600 text-white' : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            👨‍🍳 Canteen Staff Live Desk
+          </button>
+          <button
             onClick={() => { setActiveTab('kitchen'); setMobileMenuOpen(false); }}
             className={`w-full text-left py-2 px-3 rounded-xl text-xs font-black ${
               activeTab === 'kitchen' ? 'bg-amber-600 text-white' : 'text-slate-700 hover:bg-slate-100'
@@ -298,6 +357,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             🛡️ Admin Management Portal
+          </button>
+          <button
+            onClick={() => { setActiveTab('college-management'); setMobileMenuOpen(false); }}
+            className={`w-full text-left py-2 px-3 rounded-xl text-xs font-black ${
+              activeTab === 'college-management' ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            🏛️ College Management Platform
           </button>
         </div>
       )}

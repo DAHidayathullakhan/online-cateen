@@ -189,6 +189,7 @@ app.post('/api/upload', protect, authorize('Admin', 'Canteen Operator'), upload.
 
 // API Routes Registration
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/colleges', require('./routes/collegeRoutes'));
 app.use('/api/menu', require('./routes/menuRoutes'));
 app.use('/api/branches', require('./routes/branchRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
